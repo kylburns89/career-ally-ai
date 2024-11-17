@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="300" height="50" xmlns="http://www.w3.org/2000/svg">
+  <g>
+    <circle cx="25" cy="25" r="25" fill="#2563EB"/>
+    <path d="M35 15 H15 V35 H35 V15 Z M25 17 L33 25 L25 33 L17 25 L25 17" fill="white"/>
+    <text x="60" y="35" font-family="Arial" font-size="30" fill="#1E293B">Careerally</text>
+  </g>
+</svg>
