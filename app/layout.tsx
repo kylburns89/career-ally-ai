@@ -21,7 +21,7 @@ function Footer() {
       <PageContainer>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="space-y-3">
-            <h3 className="font-semibold">Career Ally AI</h3>
+            <h3 className="font-semibold">Kareerly</h3>
             <p className="text-sm text-muted-foreground">
               Your AI-powered career companion helping you land your dream job.
             </p>

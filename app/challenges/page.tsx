@@ -2,7 +2,7 @@ import { Metadata } from "next"
 import TechnicalChallengeSimulator from "@/components/challenges/technical-challenge-simulator"
 
 export const metadata: Metadata = {
-  title: "Technical Challenges | Career Ally AI",
+  title: "Technical Challenges | Kareerly",
   description: "Practice technical coding challenges with real-time AI feedback",
 }
 

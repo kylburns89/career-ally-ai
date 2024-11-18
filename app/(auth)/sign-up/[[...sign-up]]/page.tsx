@@ -101,7 +101,7 @@ export default function SignUpPage() {
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
           <CardDescription>
-            Sign up to get started with Career Ally AI
+            Sign up to get started with Kareerly
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSignUp} aria-label="Sign up form">

@@ -10,7 +10,7 @@ export default function TermsOfService() {
           <section>
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">Agreement to Terms</h2>
             <p>
-              By accessing or using Career Ally AI, you agree to be bound by these Terms of Service and all applicable laws and regulations. If you do not agree with any of these terms, you are prohibited from using or accessing this site.
+              By accessing or using Kareerly, you agree to be bound by these Terms of Service and all applicable laws and regulations. If you do not agree with any of these terms, you are prohibited from using or accessing this site.
             </p>
           </section>
 
@@ -18,9 +18,9 @@ export default function TermsOfService() {
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">Use License</h2>
             <div className="space-y-4">
               <p>
-                Permission is granted to temporarily access the materials (information or software) on Career Ally AI&apos;s website for personal, non-commercial transitory viewing only.
+                Permission is granted to temporarily access the materials (information or software) on Kareerly's website for personal, non-commercial transitory viewing only.
               </p>
-              <p>This license shall automatically terminate if you violate any of these restrictions and may be terminated by Career Ally AI at any time.</p>
+              <p>This license shall automatically terminate if you violate any of these restrictions and may be terminated by Kareerly at any time.</p>
             </div>
           </section>
 
@@ -38,7 +38,7 @@ export default function TermsOfService() {
 
           <section>
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">Service Usage</h2>
-            <p>You agree not to use Career Ally AI for any purpose that is prohibited by these Terms. You may not:</p>
+            <p>You agree not to use Kareerly for any purpose that is prohibited by these Terms. You may not:</p>
             <ul className="list-disc ml-6 mt-2">
               <li>Use the service for any illegal purpose</li>
               <li>Attempt to gain unauthorized access to any portion of the service</li>
@@ -51,7 +51,7 @@ export default function TermsOfService() {
           <section>
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">Intellectual Property</h2>
             <p>
-              The service and its original content, features, and functionality are and will remain the exclusive property of Career Ally AI. The service is protected by copyright, trademark, and other laws.
+              The service and its original content, features, and functionality are and will remain the exclusive property of Kareerly. The service is protected by copyright, trademark, and other laws.
             </p>
           </section>
 
@@ -59,7 +59,7 @@ export default function TermsOfService() {
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">Disclaimer</h2>
             <div className="space-y-4">
               <p>
-                Your use of Career Ally AI is at your sole risk. The service is provided on an &quot;AS IS&quot; and &quot;AS AVAILABLE&quot; basis. The service is provided without warranties of any kind.
+                Your use of Kareerly is at your sole risk. The service is provided on an &quot;AS IS&quot; and &quot;AS AVAILABLE&quot; basis. The service is provided without warranties of any kind.
               </p>
               <p>
                 We do not guarantee that the service will meet your specific requirements, be uninterrupted, timely, secure, or error-free.
@@ -70,7 +70,7 @@ export default function TermsOfService() {
           <section>
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">Limitation of Liability</h2>
             <p>
-              In no event shall Career Ally AI be liable for any indirect, incidental, special, consequential, or punitive damages, including without limitation, loss of profits, data, use, goodwill, or other intangible losses.
+              In no event shall Kareerly be liable for any indirect, incidental, special, consequential, or punitive damages, including without limitation, loss of profits, data, use, goodwill, or other intangible losses.
             </p>
           </section>
 

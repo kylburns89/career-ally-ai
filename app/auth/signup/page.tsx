@@ -100,7 +100,7 @@ export default function SignUpPage() {
       <CardHeader>
         <CardTitle>Create an account</CardTitle>
         <CardDescription>
-          Sign up to get started with Career Ally AI
+          Sign up to get started with Kareerly
         </CardDescription>
       </CardHeader>
       <form onSubmit={handleSignUp}>

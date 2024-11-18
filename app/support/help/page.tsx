@@ -13,7 +13,7 @@ export default function HelpCenter() {
               <div>
                 <h3 className="text-lg font-medium mb-2">How do I get started?</h3>
                 <p className="text-gray-600">
-                  Getting started with Career Ally AI is easy. Simply sign up for an account and you&apos;ll have access to all our career development tools including resume building, interview preparation, and job tracking features.
+                  Getting started with Kareerly is easy. Simply sign up for an account and you&apos;ll have access to all our career development tools including resume building, interview preparation, and job tracking features.
                 </p>
               </div>
               

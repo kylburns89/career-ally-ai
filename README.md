@@ -1,4 +1,4 @@
-# Career Ally AI
+# Kareerly AI
 
 An AI-powered career companion that helps with resumes, cover letters, interview preparation, and more.
 
