@@ -118,8 +118,8 @@ const Navbar = () => {
           <Image
             src="/images/logo.svg"
             alt="Careerally Logo"
-            width={150}
-            height={25}
+            width={200}
+            height={33}
             priority
           />
         </Link>
