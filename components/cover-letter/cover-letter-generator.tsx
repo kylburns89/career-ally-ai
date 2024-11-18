@@ -196,7 +196,7 @@ export function CoverLetterGenerator() {
             <Label htmlFor="jobDescription">
               Job Description
               <span className="text-sm text-muted-foreground ml-2">
-                (Include full description - we'll process it intelligently)
+                (Include full description - we&apos;ll process it intelligently)
               </span>
             </Label>
             <Textarea

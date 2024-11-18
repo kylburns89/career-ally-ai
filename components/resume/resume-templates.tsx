@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
@@ -73,11 +74,15 @@ export default function ResumeTemplates({ onSelect }: ResumeTemplatesProps) {
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {templates.map((template) => (
         <Card key={template.id} className="overflow-hidden">
-          <img
-            src={template.preview}
-            alt={template.name}
-            className="w-full h-48 object-cover"
-          />
+          <div className="relative w-full h-48">
+            <Image
+              src={template.preview}
+              alt={template.name}
+              fill
+              className="object-cover"
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            />
+          </div>
           <div className="p-4 space-y-2">
             <h3 className="font-semibold">{template.name}</h3>
             <p className="text-sm text-muted-foreground">{template.description}</p>

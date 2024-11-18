@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import ResumePreview from "./resume-preview";
 import { useToast } from "@/components/ui/use-toast";
 import { LoadingSpinner } from "@/components/loading";
 import { resumeContentSchema } from "@/lib/validations";
-import type { ResumeData, SavedResume } from "@/lib/database";
+import type { ResumeData, SavedResume } from "@/types/database";
 
 interface ResumeBuilderProps {
   activeResume: string | null;
@@ -51,15 +51,21 @@ export default function ResumeBuilder({
     },
   });
 
-  // Update preview data whenever form values change
-  useEffect(() => {
+  // Memoize the watch callback to prevent infinite re-renders
+  const updatePreviewData = useCallback(() => {
     const formData = form.getValues();
     setPreviewData({
       ...formData,
       skills,
       template: selectedTemplate || "",
     });
-  }, [form.watch(), skills, selectedTemplate]);
+  }, [form, skills, selectedTemplate]);
+
+  // Update preview data whenever form values change
+  useEffect(() => {
+    const subscription = form.watch(updatePreviewData);
+    return () => subscription.unsubscribe();
+  }, [form, updatePreviewData]);
 
   // Load existing resume data if available
   useEffect(() => {
@@ -85,11 +91,11 @@ export default function ResumeBuilder({
         });
       }
     }
-  }, [activeResume, form]);
+  }, [activeResume, form, toast]);
 
   // Update form when template changes
   useEffect(() => {
-    form.setValue("template", selectedTemplate || "");
+    form.setValue("template", selectedTemplate || "", { shouldValidate: true });
   }, [selectedTemplate, form]);
 
   const onSubmit = async (formData: ResumeData) => {
@@ -445,7 +451,7 @@ export default function ResumeBuilder({
                   value={newSkill}
                   onChange={(e) => setNewSkill(e.target.value)}
                   placeholder="Add a skill..."
-                  onKeyPress={(e: React.KeyboardEvent) => {
+                  onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
                       addSkill();

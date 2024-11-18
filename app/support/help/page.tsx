@@ -1,4 +1,4 @@
-import { PageContainer } from "@/components/page-container";
+import { PageContainer } from "../../../components/page-container";
 
 export default function HelpCenter() {
   return (
@@ -13,7 +13,7 @@ export default function HelpCenter() {
               <div>
                 <h3 className="text-lg font-medium mb-2">How do I get started?</h3>
                 <p className="text-gray-600">
-                  Getting started with Career Ally AI is easy. Simply sign up for an account and you'll have access to all our career development tools including resume building, interview preparation, and job tracking features.
+                  Getting started with Career Ally AI is easy. Simply sign up for an account and you&apos;ll have access to all our career development tools including resume building, interview preparation, and job tracking features.
                 </p>
               </div>
               
@@ -44,7 +44,7 @@ export default function HelpCenter() {
           <section>
             <h2 className="text-2xl font-semibold mb-4">Contact Us</h2>
             <p className="text-gray-600 mb-4">
-              Have a question that's not answered above? We're here to help!
+              Have a question that&apos;s not answered above? We&apos;re here to help!
             </p>
             <div className="bg-gray-50 p-6 rounded-lg">
               <p className="font-medium mb-2">Email Support:</p>

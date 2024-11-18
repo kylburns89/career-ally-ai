@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { Button } from "@/components/ui/button"
 import {
@@ -58,11 +58,7 @@ export function ApplicationTracker() {
 
   const supabase = createClientComponentClient<Database>()
 
-  useEffect(() => {
-    fetchApplications()
-  }, [])
-
-  const fetchApplications = async () => {
+  const fetchApplications = useCallback(async () => {
     const { data: applications, error } = await supabase
       .from("applications")
       .select("*")
@@ -74,7 +70,11 @@ export function ApplicationTracker() {
     }
 
     setApplications(applications)
-  }
+  }, [supabase])
+
+  useEffect(() => {
+    fetchApplications()
+  }, [fetchApplications])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

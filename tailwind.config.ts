@@ -1,6 +1,7 @@
 import { blackA, mauve, violet, indigo, purple } from "@radix-ui/colors";
+import type { Config } from 'tailwindcss';
+import plugin from 'tailwindcss/plugin';
 
-/** @type {import('tailwindcss').Config} */
 export default {
   darkMode: ["class"],
   content: [
@@ -121,12 +122,12 @@ export default {
   },
   plugins: [
     require("tailwindcss-animate"),
-    function({ matchUtilities }) {
+    plugin(function({ matchUtilities }: { matchUtilities: any }) {
       matchUtilities({
-        perspective: (value) => ({
+        perspective: (value: string) => ({
           perspective: value,
         }),
       });
-    },
+    }),
   ],
-}
+} satisfies Config;

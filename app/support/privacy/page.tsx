@@ -1,4 +1,4 @@
-import { PageContainer } from "@/components/page-container";
+import { PageContainer } from "../../../components/page-container";
 
 export default function PrivacyPolicy() {
   return (
@@ -84,7 +84,7 @@ export default function PrivacyPolicy() {
           <section>
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">Updates to This Policy</h2>
             <p>
-              We may update this Privacy Policy from time to time. The updated version will be indicated by an updated "Last Updated" date and the updated version will be effective as soon as it is accessible.
+              We may update this Privacy Policy from time to time. The updated version will be indicated by an updated &quot;Last Updated&quot; date and the updated version will be effective as soon as it is accessible.
             </p>
             <p className="mt-2">
               Last Updated: January 2024

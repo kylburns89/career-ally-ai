@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ResumeBuilder from "@/components/resume/resume-builder";
 import ResumeAnalyzer from "@/components/resume/resume-analyzer";
@@ -24,32 +24,7 @@ export default function ResumePage() {
   const { toast } = useToast();
   const supabase = createClientComponentClient();
 
-  useEffect(() => {
-    fetchResumes();
-  }, []);
-
-  // Update active resume states whenever activeResume changes
-  useEffect(() => {
-    if (activeResume) {
-      try {
-        const parsedResume = JSON.parse(activeResume) as Resume;
-        setActiveResumeContent(parsedResume.content);
-        setActiveResumeId(parsedResume.id);
-        setActiveAnalysis(parsedResume.analysis);
-      } catch (error) {
-        console.error("Error parsing resume:", error);
-        setActiveResumeContent(null);
-        setActiveResumeId(null);
-        setActiveAnalysis(null);
-      }
-    } else {
-      setActiveResumeContent(null);
-      setActiveResumeId(null);
-      setActiveAnalysis(null);
-    }
-  }, [activeResume]);
-
-  const fetchResumes = async () => {
+  const fetchResumes = useCallback(async () => {
     try {
       // Check auth session first
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
@@ -80,7 +55,32 @@ export default function ResumePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [supabase, toast]);
+
+  useEffect(() => {
+    fetchResumes();
+  }, [fetchResumes]);
+
+  // Update active resume states whenever activeResume changes
+  useEffect(() => {
+    if (activeResume) {
+      try {
+        const parsedResume = JSON.parse(activeResume) as Resume;
+        setActiveResumeContent(parsedResume.content);
+        setActiveResumeId(parsedResume.id);
+        setActiveAnalysis(parsedResume.analysis);
+      } catch (error) {
+        console.error("Error parsing resume:", error);
+        setActiveResumeContent(null);
+        setActiveResumeId(null);
+        setActiveAnalysis(null);
+      }
+    } else {
+      setActiveResumeContent(null);
+      setActiveResumeId(null);
+      setActiveAnalysis(null);
+    }
+  }, [activeResume]);
 
   const handleTemplateSelect = (templateId: string) => {
     setSelectedTemplate(templateId);
@@ -201,7 +201,7 @@ export default function ResumePage() {
                     <Button
                       variant="destructive"
                       size="sm"
-                      onClick={(e) => {
+                      onClick={(e: React.MouseEvent) => {
                         e.stopPropagation();
                         handleDeleteResume(resume.id);
                       }}

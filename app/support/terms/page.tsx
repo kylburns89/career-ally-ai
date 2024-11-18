@@ -1,4 +1,4 @@
-import { PageContainer } from "@/components/page-container";
+import { PageContainer } from "../../../components/page-container";
 
 export default function TermsOfService() {
   return (
@@ -18,7 +18,7 @@ export default function TermsOfService() {
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">Use License</h2>
             <div className="space-y-4">
               <p>
-                Permission is granted to temporarily access the materials (information or software) on Career Ally AI's website for personal, non-commercial transitory viewing only.
+                Permission is granted to temporarily access the materials (information or software) on Career Ally AI&apos;s website for personal, non-commercial transitory viewing only.
               </p>
               <p>This license shall automatically terminate if you violate any of these restrictions and may be terminated by Career Ally AI at any time.</p>
             </div>
@@ -59,7 +59,7 @@ export default function TermsOfService() {
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">Disclaimer</h2>
             <div className="space-y-4">
               <p>
-                Your use of Career Ally AI is at your sole risk. The service is provided on an "AS IS" and "AS AVAILABLE" basis. The service is provided without warranties of any kind.
+                Your use of Career Ally AI is at your sole risk. The service is provided on an &quot;AS IS&quot; and &quot;AS AVAILABLE&quot; basis. The service is provided without warranties of any kind.
               </p>
               <p>
                 We do not guarantee that the service will meet your specific requirements, be uninterrupted, timely, secure, or error-free.
