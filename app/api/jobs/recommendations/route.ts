@@ -58,7 +58,7 @@ export async function GET() {
         },
         { role: "user", content: prompt }
       ],
-      "gpt-4" as const
+      "gpt-4o-mini" as const
     );
 
     const content = completion.choices[0]?.message?.content;
