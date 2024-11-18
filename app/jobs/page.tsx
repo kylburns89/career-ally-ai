@@ -5,8 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ExternalLink, Building2, MapPin, Calendar } from "lucide-react";
+import { ExternalLink, Building2, MapPin, Calendar, Sparkles } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
+import { useProfile } from "@/hooks/use-profile";
 
 interface Job {
   job_id: string;
@@ -20,13 +21,47 @@ interface Job {
   logo?: string;
 }
 
+interface Recommendation {
+  title: string;
+  description: string;
+  estimatedSalary: string;
+  requiredSkills: string[];
+  matchScore: number;
+}
+
 export default function JobsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [location, setLocation] = useState("");
   const [experienceLevel, setExperienceLevel] = useState("");
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadingRecommendations, setLoadingRecommendations] = useState(false);
+  const [showRecommendations, setShowRecommendations] = useState(false);
   const { toast } = useToast();
+  const { profile } = useProfile();
+
+  const fetchRecommendations = async () => {
+    setLoadingRecommendations(true);
+    try {
+      const response = await fetch('/api/jobs/recommendations');
+      if (!response.ok) {
+        throw new Error('Failed to fetch recommendations');
+      }
+      const data = await response.json();
+      setRecommendations(data.recommendations || []);
+      setShowRecommendations(true);
+    } catch (error) {
+      console.error("Error fetching recommendations:", error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch job recommendations. Please try again later.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingRecommendations(false);
+    }
+  };
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
@@ -70,6 +105,83 @@ export default function JobsPage() {
     <div className="container mx-auto py-8 px-4">
       <h1 className="text-4xl font-bold mb-8">Find Your Next Opportunity</h1>
       
+      {/* AI Recommendations Section */}
+      {profile && (
+        <div className="mb-12">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-6 w-6 text-blue-500" />
+              <h2 className="text-2xl font-semibold">AI Job Recommendations</h2>
+            </div>
+            <Button
+              onClick={fetchRecommendations}
+              disabled={loadingRecommendations}
+              variant="outline"
+              className="flex items-center gap-2"
+            >
+              <Sparkles className="h-4 w-4" />
+              {loadingRecommendations ? "Getting Recommendations..." : "Get AI Recommendations"}
+            </Button>
+          </div>
+          
+          {loadingRecommendations ? (
+            <Card>
+              <CardContent className="text-center py-8">
+                <div className="flex items-center justify-center">
+                  <svg className="animate-spin h-8 w-8 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                </div>
+              </CardContent>
+            </Card>
+          ) : showRecommendations && (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {recommendations.map((rec, index) => (
+                <Card key={index} className="hover:shadow-lg transition-shadow">
+                  <CardHeader>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <CardTitle className="text-xl mb-2">{rec.title}</CardTitle>
+                        <CardDescription>
+                          Match Score: {rec.matchScore}%
+                        </CardDescription>
+                      </div>
+                      <span className="text-sm font-medium bg-green-100 text-green-800 px-3 py-1 rounded-full">
+                        AI Match
+                      </span>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-col gap-4">
+                      <p className="text-sm text-muted-foreground">
+                        {rec.description}
+                      </p>
+                      <div className="flex flex-col gap-2">
+                        <div className="text-sm">
+                          <span className="font-medium">Estimated Salary:</span> {rec.estimatedSalary}
+                        </div>
+                        <div className="text-sm">
+                          <span className="font-medium">Required Skills:</span>
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            {rec.requiredSkills.map((skill, i) => (
+                              <span key={i} className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
+                                {skill}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Job Search Section */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         <Input
           placeholder="Job title, keywords, or company"

@@ -1,10 +1,9 @@
 "use client"
 
 import Link from "next/link"
-import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import { Button } from "@/components/ui/button"
+import { Button } from "./ui/button"
 import {
   NavigationMenu,
   NavigationMenuContent,
@@ -13,9 +12,19 @@ import {
   NavigationMenuList,
   NavigationMenuTrigger,
   navigationMenuTriggerStyle,
-} from "@/components/ui/navigation-menu"
-import { cn } from "@/lib/utils"
+} from "./ui/navigation-menu"
+import { cn } from "../lib/utils"
 import React, { useEffect, useState } from "react"
+import { useProfile } from "../hooks/use-profile"
+import { Avatar, AvatarFallback } from "./ui/avatar"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu"
 
 const components: { title: string; href: string; description: string }[] = [
   {
@@ -47,6 +56,11 @@ const components: { title: string; href: string; description: string }[] = [
     title: "Salary Coach",
     href: "/salary",
     description: "Get personalized salary insights and negotiation tips",
+  },
+  {
+    title: "Job Search",
+    href: "/jobs",
+    description: "Find and explore job opportunities with AI recommendations",
   },
 ]
 
@@ -87,6 +101,7 @@ const Navbar = () => {
   const router = useRouter()
   const supabase = createClientComponentClient()
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const { profile } = useProfile()
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -111,17 +126,18 @@ const Navbar = () => {
     router.push('/')
   }
 
+  const getInitials = (title: string | null | undefined) => {
+    if (!title) return "U"
+    return title.split(" ").map(word => word[0]).join("").toUpperCase()
+  }
+
   return (
     <div className="border-b">
       <div className="flex h-16 items-center px-4">
-        <Link href="/" className="mr-4 flex items-center">
-          <Image
-            src="/images/logo.svg"
-            alt="Careerally Logo"
-            width={200}
-            height={33}
-            priority
-          />
+        <Link href="/" className="mr-6 flex items-center space-x-2">
+          <div className="h-8 w-8">
+          </div>
+          <span className="font-semibold">Kareerly</span>
         </Link>
         <NavigationMenu>
           <NavigationMenuList>
@@ -166,6 +182,13 @@ const Navbar = () => {
                     </ul>
                   </NavigationMenuContent>
                 </NavigationMenuItem>
+                <NavigationMenuItem>
+                  <Link href="/jobs" legacyBehavior passHref>
+                    <NavigationMenuLink className={navigationMenuTriggerStyle()}>
+                      Jobs
+                    </NavigationMenuLink>
+                  </Link>
+                </NavigationMenuItem>
               </>
             )}
             <NavigationMenuItem>
@@ -179,9 +202,23 @@ const Navbar = () => {
         </NavigationMenu>
         <div className="ml-auto flex items-center space-x-4">
           {isAuthenticated ? (
-            <Button variant="outline" onClick={handleLogout}>
-              Logout
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Avatar className="cursor-pointer">
+                  <AvatarFallback>{getInitials(profile?.title)}</AvatarFallback>
+                </Avatar>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>
+                  {profile?.title || "User Profile"}
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href="/settings/profile">Profile Settings</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleLogout}>Logout</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           ) : (
             <>
               <Link href="/auth/login">

@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { BriefcaseIcon, FileTextIcon, MessagesSquareIcon, LineChartIcon, BrainCircuitIcon, ClipboardCheckIcon, CodeIcon } from "lucide-react";
+import { BriefcaseIcon, FileTextIcon, MessagesSquareIcon, LineChartIcon, BrainCircuitIcon, ClipboardCheckIcon, CodeIcon, SparklesIcon } from "lucide-react";
 import Link from "next/link";
 
 const features = [
@@ -45,6 +45,12 @@ const features = [
     title: "Technical Challenges",
     description: "Practice technical interviews with AI feedback",
     href: "/challenges"
+  },
+  {
+    icon: SparklesIcon,
+    title: "Coming Soon",
+    description: "Career Path Planning, Networking Assistant, Skills Assessment, and more exciting features on the way!",
+    href: "#"
   }
 ];
 
@@ -68,14 +74,20 @@ export default function Home() {
 
       <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {features.map((feature) => (
-          <Card key={feature.title} className="p-6 hover:shadow-lg transition-shadow">
+          <Card key={feature.title} className={`p-6 hover:shadow-lg transition-shadow ${feature.title === "Coming Soon" ? "bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-950/10 dark:to-blue-950/10" : ""}`}>
             <div className="space-y-4">
-              <feature.icon className="w-12 h-12 text-primary" />
+              <feature.icon className={`w-12 h-12 ${feature.title === "Coming Soon" ? "text-purple-500" : "text-primary"}`} />
               <h2 className="text-xl font-semibold">{feature.title}</h2>
               <p className="text-muted-foreground">{feature.description}</p>
-              <Button asChild variant="ghost" className="w-full">
-                <Link href={feature.href}>Get Started →</Link>
-              </Button>
+              {feature.title !== "Coming Soon" ? (
+                <Button asChild variant="ghost" className="w-full">
+                  <Link href={feature.href}>Get Started →</Link>
+                </Button>
+              ) : (
+                <Button disabled variant="ghost" className="w-full">
+                  Stay Tuned →
+                </Button>
+              )}
             </div>
           </Card>
         ))}
