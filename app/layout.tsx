@@ -11,7 +11,7 @@ import Link from "next/link";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
-  title: "Career Ally AI",
+  title: "Kareerly",
   description: "Your AI-powered career companion",
 };
 
@@ -92,7 +92,7 @@ function Footer() {
         </div>
         
         <div className="mt-8 pt-6 border-t text-center text-sm text-muted-foreground">
-          <p>&copy; {new Date().getFullYear()} Career Ally AI. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} Kareerly. All rights reserved.</p>
         </div>
       </PageContainer>
     </footer>

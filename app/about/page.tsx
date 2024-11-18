@@ -22,7 +22,7 @@ const benefits = [
   {
     icon: ShieldCheckIcon,
     title: "Privacy First",
-    description: "Your data is secure and private. We use advanced encryption to protect your sensitive career information."
+    description: "Your data is secure and private stored in Supabase, a secure and compliant platform."
   },
   {
     icon: HeartIcon,
@@ -35,9 +35,9 @@ export default function About() {
   return (
     <div className="space-y-12 py-8">
       <section className="text-center space-y-6">
-        <h1 className="text-4xl font-bold tracking-tight">About Career Ally AI</h1>
+        <h1 className="text-4xl font-bold tracking-tight">About Kareerly</h1>
         <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-          Career Ally AI is your intelligent career companion, combining advanced artificial intelligence with comprehensive career development tools to help you achieve your professional goals.
+          Kareerly is your intelligent career companion, combining advanced artificial intelligence with comprehensive career development tools to help you achieve your professional goals.
         </p>
         <div className="flex justify-center gap-4">
           <Button asChild size="lg">
