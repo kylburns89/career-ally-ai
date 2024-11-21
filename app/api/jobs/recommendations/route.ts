@@ -50,7 +50,7 @@ export async function GET() {
       ]
     }`;
 
-    const completion = await createChatCompletion(
+    const content = await createChatCompletion(
       [
         { 
           role: "system", 
@@ -58,10 +58,12 @@ export async function GET() {
         },
         { role: "user", content: prompt }
       ],
-      "gpt-4o-mini" as const
+      {
+        model: "gpt-4o-mini",
+        temperature: 0.7
+      }
     );
 
-    const content = completion.choices[0]?.message?.content;
     if (!content) {
       throw new Error("Failed to generate recommendations");
     }

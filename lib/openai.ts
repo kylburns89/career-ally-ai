@@ -1,46 +1,52 @@
 import OpenAI from 'openai';
-import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
-// Initialize OpenAI with Helicone proxy
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
-  baseURL: 'https://oai.hconeai.com/v1',
-  defaultHeaders: {
-    'Helicone-Auth': `Bearer ${process.env.HELICONE_API_KEY}`,
-  },
 });
 
-// Wrapper function to handle rate limiting and user tracking
-export async function createChatCompletion(
-  messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-  model: string,
-  userId?: string
-) {
-  try {
-    // Add user ID to Helicone headers if available
-    const options: OpenAI.RequestOptions = {
-      headers: userId ? {
-        'Helicone-User-Id': userId
-      } : {}
-    };
-
-    const completion = await openai.chat.completions.create({
-      messages,
-      model,
-    }, options);
-
-    return completion;
-  } catch (error: any) {
-    if (error?.status === 429) {
-      throw new Error('Rate limit exceeded. Please try again later.');
-    }
-    throw error;
-  }
+interface OpenAIOptions {
+  model: string;
+  temperature: number;
+  response_format?: {
+    type: 'json_object';
+  };
 }
 
-export default openai;
+type ChatRole = 'system' | 'user' | 'assistant';
+
+interface ChatMessage {
+  role: ChatRole;
+  content: string;
+}
+
+export async function createChatCompletion(
+  messages: ChatMessage[],
+  options: { model: string; temperature: number }
+) {
+  const response = await openai.chat.completions.create({
+    messages: messages as any, // Type assertion needed due to OpenAI types being more specific
+    model: options.model,
+    temperature: options.temperature,
+  });
+
+  return response.choices[0].message.content;
+}
+
+export async function generateCareerPath(
+  prompt: string,
+  options: OpenAIOptions
+): Promise<string> {
+  const response = await openai.chat.completions.create({
+    messages: [{ role: 'user', content: prompt }] as any, // Type assertion needed due to OpenAI types being more specific
+    model: options.model,
+    temperature: options.temperature,
+    response_format: options.response_format,
+  });
+
+  const content = response.choices[0].message.content;
+  if (!content) {
+    throw new Error('No content generated');
+  }
+
+  return content;
+}

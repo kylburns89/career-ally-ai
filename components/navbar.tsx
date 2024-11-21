@@ -62,6 +62,11 @@ const components: { title: string; href: string; description: string }[] = [
     href: "/jobs",
     description: "Find and explore job opportunities with AI recommendations",
   },
+  {
+    title: "Career Path Visualizer",
+    href: "/tools/career",
+    description: "Visualize and plan your career progression with AI insights",
+  },
 ]
 
 const resources: { title: string; href: string; description: string }[] = [
@@ -84,11 +89,6 @@ const resources: { title: string; href: string; description: string }[] = [
     title: "Job Search Resources",
     href: "/resources/job-search",
     description: "Job search strategies and networking tips",
-  },
-  {
-    title: "Career Development",
-    href: "/resources/career",
-    description: "Professional growth and skill development resources",
   },
   {
     title: "Salary Resources",

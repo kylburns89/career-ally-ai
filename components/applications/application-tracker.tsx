@@ -28,6 +28,16 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Database } from "@/types/database"
 
 type ApplicationStatus = "applied" | "interviewing" | "offer" | "rejected"
@@ -44,6 +54,8 @@ const statusColors = {
 export function ApplicationTracker() {
   const [applications, setApplications] = useState<Application[]>([])
   const [isOpen, setIsOpen] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [applicationToDelete, setApplicationToDelete] = useState<string | null>(null)
   const [newApplication, setNewApplication] = useState<{
     company: string
     job_title: string
@@ -110,6 +122,29 @@ export function ApplicationTracker() {
       status: "applied",
       notes: "",
     })
+    fetchApplications()
+  }
+
+  const handleDelete = async (id: string) => {
+    setApplicationToDelete(id)
+    setDeleteDialogOpen(true)
+  }
+
+  const confirmDelete = async () => {
+    if (!applicationToDelete) return
+
+    const { error } = await supabase
+      .from("applications")
+      .delete()
+      .eq("id", applicationToDelete)
+
+    if (error) {
+      console.error("Error deleting application:", error)
+      return
+    }
+
+    setDeleteDialogOpen(false)
+    setApplicationToDelete(null)
     fetchApplications()
   }
 
@@ -183,6 +218,21 @@ export function ApplicationTracker() {
         </DialogContent>
       </Dialog>
 
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the application record.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <div className="rounded-md border">
         <Table>
           <TableHeader>
@@ -192,6 +242,7 @@ export function ApplicationTracker() {
               <TableHead>Status</TableHead>
               <TableHead>Date Applied</TableHead>
               <TableHead>Notes</TableHead>
+              <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -213,6 +264,15 @@ export function ApplicationTracker() {
                   {new Date(application.applied_date).toLocaleDateString()}
                 </TableCell>
                 <TableCell>{application.notes}</TableCell>
+                <TableCell>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleDelete(application.id)}
+                  >
+                    Delete
+                  </Button>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>

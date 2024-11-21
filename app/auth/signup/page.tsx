@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import { Button } from "@/components/ui/button"
+import { Button } from "../../../components/ui/button"
 import {
   Card,
   CardContent,
@@ -11,11 +11,11 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { useToast } from "@/components/ui/use-toast"
-import { LoadingSpinner } from "@/components/loading"
+} from "../../../components/ui/card"
+import { Input } from "../../../components/ui/input"
+import { Label } from "../../../components/ui/label"
+import { useToast } from "../../../components/ui/use-toast"
+import { LoadingSpinner } from "../../../components/loading"
 import Link from "next/link"
 
 export default function SignUpPage() {
@@ -27,12 +27,13 @@ export default function SignUpPage() {
   const { toast } = useToast()
   const supabase = createClientComponentClient()
 
-  const handleSignUp = async (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setLoading(true)
 
     try {
-      const { error } = await supabase.auth.signUp({
+      console.log('Starting signup process for email:', email)
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -41,6 +42,12 @@ export default function SignUpPage() {
       })
 
       if (error) {
+        console.error('Signup error:', {
+          code: error.code,
+          message: error.message,
+          name: error.name,
+          stack: error.stack
+        })
         toast({
           title: "Error",
           description: error.message,
@@ -48,6 +55,12 @@ export default function SignUpPage() {
         })
         return
       }
+
+      console.log('Signup successful:', {
+        userId: data.user?.id,
+        email: data.user?.email,
+        confirmationSent: data.user?.confirmation_sent_at
+      })
 
       toast({
         title: "Success",
@@ -57,6 +70,7 @@ export default function SignUpPage() {
       // Redirect to login page
       router.push("/auth/login")
     } catch (error) {
+      console.error('Unexpected signup error:', error)
       toast({
         title: "Error",
         description: "An unexpected error occurred",
@@ -70,6 +84,7 @@ export default function SignUpPage() {
   const handleGithubSignUp = async () => {
     try {
       setGithubLoading(true)
+      console.log('Starting GitHub signup process')
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "github",
         options: {
@@ -78,13 +93,22 @@ export default function SignUpPage() {
       })
 
       if (error) {
+        console.error('GitHub signup error:', {
+          code: error.code,
+          message: error.message,
+          name: error.name,
+          stack: error.stack
+        })
         toast({
           title: "Error",
           description: error.message,
           variant: "destructive",
         })
+      } else {
+        console.log('GitHub signup initiated successfully')
       }
     } catch (error) {
+      console.error('Unexpected GitHub signup error:', error)
       toast({
         title: "Error",
         description: "An unexpected error occurred",
@@ -112,7 +136,7 @@ export default function SignUpPage() {
               type="email"
               placeholder="Enter your email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.target.value)}
               required
               disabled={loading || githubLoading}
             />
@@ -124,7 +148,7 @@ export default function SignUpPage() {
               type="password"
               placeholder="Create a password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPassword(e.target.value)}
               required
               disabled={loading || githubLoading}
             />

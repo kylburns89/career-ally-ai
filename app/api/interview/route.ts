@@ -110,33 +110,33 @@ export async function POST(req: Request) {
     const { action, message, role } = body
 
     if (action === "start") {
-      const completion = await createChatCompletion(
+      const content = await createChatCompletion(
         [
           { role: "system", content: getSystemPrompt(role) },
           { role: "user", content: "Let's start the interview." }
         ],
-        "gpt-4o-mini",
-        userId
+        {
+          model: "gpt-4o-mini",
+          temperature: 0.7
+        }
       )
 
-      return NextResponse.json({
-        message: completion.choices[0].message.content
-      })
+      return NextResponse.json({ message: content })
     }
 
     // Handle ongoing interview conversation
-    const completion = await createChatCompletion(
+    const content = await createChatCompletion(
       [
         { role: "system", content: getSystemPrompt(role) },
         { role: "user", content: message }
       ],
-      "gpt-4o-mini",
-      userId
+      {
+        model: "gpt-4o-mini",
+        temperature: 0.7
+      }
     )
 
-    return NextResponse.json({
-      message: completion.choices[0].message.content
-    })
+    return NextResponse.json({ message: content })
 
   } catch (error: any) {
     console.error("Interview API error:", error)

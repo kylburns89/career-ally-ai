@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { BriefcaseIcon, FileTextIcon, MessagesSquareIcon, LineChartIcon, BrainCircuitIcon, ClipboardCheckIcon, CodeIcon, SparklesIcon } from "lucide-react";
+import { BriefcaseIcon, FileTextIcon, MessagesSquareIcon, LineChartIcon, BrainCircuitIcon, ClipboardCheckIcon, CodeIcon, SparklesIcon, GitForkIcon } from "lucide-react";
 import Link from "next/link";
 
 const features = [
@@ -47,9 +47,15 @@ const features = [
     href: "/challenges"
   },
   {
+    icon: GitForkIcon,
+    title: "Career Path Visualizer",
+    description: "Explore and plan your career progression with AI guidance",
+    href: "/tools/career"
+  },
+  {
     icon: SparklesIcon,
     title: "Coming Soon",
-    description: "Career Path Planning, Networking Assistant, Skills Assessment, and more exciting features on the way!",
+    description: "Networking Assistant, Skills Assessment, and more exciting features on the way!",
     href: "#"
   }
 ];
