@@ -1,6 +1,6 @@
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
-import { generateCareerPath } from '@/lib/openai';
+import { generateCareerPath } from '@/lib/together';
 import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
@@ -37,7 +37,9 @@ export async function POST(req: Request) {
       5. Key responsibilities
 
       Format the response as a JSON object with a "career_steps" array containing the progression steps.
-      Each step should have: title, timeline, required_skills (array), certifications (array), and responsibilities (array).`;
+      Each step should have: title, timeline, required_skills (array), certifications (array), and responsibilities (array).
+      
+      Important: Return only the JSON object with no additional text or formatting.`;
     } else {
       prompt = `Generate a detailed career progression path for someone interested in becoming a ${careerInput}.
       
@@ -49,16 +51,39 @@ export async function POST(req: Request) {
       5. Key responsibilities
 
       Format the response as a JSON object with a "career_steps" array containing the progression steps.
-      Each step should have: title, timeline, required_skills (array), certifications (array), and responsibilities (array).`;
+      Each step should have: title, timeline, required_skills (array), certifications (array), and responsibilities (array).
+      
+      Important: Return only the JSON object with no additional text or formatting.`;
     }
 
     const response = await generateCareerPath(prompt, {
-      model: 'gpt-4o-mini',
+      model: 'meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo',
       temperature: 0.7,
       response_format: { type: 'json_object' }
     });
 
-    return NextResponse.json(JSON.parse(response));
+    // Enhanced cleanup of the response
+    let cleanResponse = response
+      // Remove markdown code blocks
+      .replace(/```(?:json)?\n?|\n?```/g, '')
+      // Remove any leading/trailing whitespace
+      .trim()
+      // Remove any potential BOM or hidden characters
+      .replace(/^\uFEFF/, '')
+      // Find the first { and last } to extract just the JSON object
+      .replace(/^[\s\S]*?({[\s\S]*})[\s\S]*$/, '$1');
+
+    try {
+      // Attempt to parse the cleaned JSON
+      const parsedJson = JSON.parse(cleanResponse);
+      return NextResponse.json(parsedJson);
+    } catch (parseError) {
+      console.error('JSON parsing error:', parseError, '\nResponse:', cleanResponse);
+      return NextResponse.json(
+        { error: 'Invalid JSON response from AI' },
+        { status: 500 }
+      );
+    }
   } catch (error) {
     console.error('Career path generation error:', error);
     return NextResponse.json(

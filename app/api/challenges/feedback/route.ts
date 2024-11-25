@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server"
-import OpenAI from "openai"
+import { createChatCompletion } from "@/lib/together"
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+type ChatRole = 'system' | 'user' | 'assistant';
+
+interface ChatMessage {
+  role: ChatRole;
+  content: string;
+}
 
 const SYSTEM_PROMPT = `You are an expert technical interviewer specializing in coding challenges. Your role is to:
 
@@ -55,7 +58,7 @@ export async function POST(req: Request) {
     const body = await req.json()
     const { action, message } = body
 
-    let messages = [{ role: "system", content: SYSTEM_PROMPT }]
+    let messages: ChatMessage[] = [{ role: "system", content: SYSTEM_PROMPT }]
 
     if (action === "start") {
       messages.push({
@@ -66,14 +69,13 @@ export async function POST(req: Request) {
       messages.push({ role: "user", content: message })
     }
 
-    const completion = await openai.chat.completions.create({
-      messages: messages as any[],
-      model: "gpt-4o-mini",
-      temperature: 0.7,
-      max_tokens: 1000,
-    })
-
-    const aiMessage = completion.choices[0].message.content
+    const aiMessage = await createChatCompletion(
+      messages,
+      {
+        model: "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
+        temperature: 0.7
+      }
+    )
 
     return NextResponse.json({ message: aiMessage })
   } catch (error) {

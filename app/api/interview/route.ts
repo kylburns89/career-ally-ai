@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { createChatCompletion } from "@/lib/openai"
+import { createChatCompletion } from "@/lib/together"
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 
@@ -116,7 +116,7 @@ export async function POST(req: Request) {
           { role: "user", content: "Let's start the interview." }
         ],
         {
-          model: "gpt-4o-mini",
+          model: "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
           temperature: 0.7
         }
       )
@@ -131,7 +131,7 @@ export async function POST(req: Request) {
         { role: "user", content: message }
       ],
       {
-        model: "gpt-4o-mini",
+        model: "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
         temperature: 0.7
       }
     )

@@ -1,107 +1,81 @@
-"use client"
+'use client';
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
-import { Card } from "@/components/ui/card"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Loader2 } from "lucide-react"
-
-interface Message {
-  role: "user" | "assistant"
-  content: string
-}
+import { useChat } from 'ai/react';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 export function SalaryCoach() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: "assistant",
-      content: "Hello! I'm your AI Salary Coach. I can help you with salary negotiation strategies. What would you like to know about? For example:\n\n- How to research salary ranges\n- When to bring up salary in interviews\n- How to respond to salary questions\n- Negotiating benefits and perks\n- Handling counter-offers"
-    }
-  ])
-  const [input, setInput] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!input.trim() || isLoading) return
-
-    const userMessage = input.trim()
-    setInput("")
-    setMessages(prev => [...prev, { role: "user", content: userMessage }])
-    setIsLoading(true)
-
-    try {
-      const response = await fetch("/api/salary-coach", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMessage, messages }),
-      })
-
-      if (!response.ok) throw new Error("Failed to get response")
-
-      const data = await response.json()
-      setMessages(prev => [...prev, { role: "assistant", content: data.message }])
-    } catch (error) {
-      console.error("Error:", error)
-      setMessages(prev => [
-        ...prev,
-        {
-          role: "assistant",
-          content: "I apologize, but I encountered an error. Please try again.",
-        },
-      ])
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  const {
+    messages,
+    input,
+    handleInputChange,
+    handleSubmit,
+    isLoading,
+    error
+  } = useChat({
+    api: '/api/salary-coach',
+    initialMessages: [
+      {
+        id: 'init',
+        role: 'assistant',
+        content: 'Hi! I\'m your AI Salary Coach. I can help you understand salary ranges, negotiate better compensation, and make informed career decisions. What would you like to know about salaries or compensation?'
+      }
+    ]
+  });
 
   return (
-    <div className="flex flex-col space-y-4 max-w-4xl mx-auto">
-      <Card className="p-6">
-        <ScrollArea className="h-[500px] pr-4">
-          <div className="flex flex-col space-y-4">
-            {messages.map((message, index) => (
+    <Card className="flex flex-col h-[600px] w-full max-w-2xl mx-auto">
+      <ScrollArea className="flex-1 p-4">
+        <div className="space-y-4">
+          {messages.map((message) => (
+            <div
+              key={message.id}
+              className={`flex flex-col ${
+                message.role === 'assistant'
+                  ? 'items-start'
+                  : 'items-end'
+              }`}
+            >
               <div
-                key={index}
-                className={`flex ${
-                  message.role === "user" ? "justify-end" : "justify-start"
+                className={`rounded-lg px-3 py-2 max-w-[85%] ${
+                  message.role === 'assistant'
+                    ? 'bg-secondary'
+                    : 'bg-primary text-primary-foreground'
                 }`}
               >
-                <div
-                  className={`rounded-lg p-4 max-w-[80%] ${
-                    message.role === "user"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted"
-                  }`}
-                >
-                  <p className="whitespace-pre-wrap">{message.content}</p>
-                </div>
+                {message.content}
               </div>
-            ))}
-          </div>
-        </ScrollArea>
+            </div>
+          ))}
+          {isLoading && (
+            <div className="flex items-center space-x-2">
+              <div className="animate-pulse">Thinking...</div>
+            </div>
+          )}
+          {error && (
+            <div className="text-red-500 text-sm">
+              An error occurred. Please try again.
+            </div>
+          )}
+        </div>
+      </ScrollArea>
 
-        <form onSubmit={handleSubmit} className="mt-4 flex flex-col space-y-4">
-          <Textarea
+      <form onSubmit={handleSubmit} className="p-4 border-t">
+        <div className="flex space-x-2">
+          <Input
             value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Type your question about salary negotiation..."
-            className="min-h-[100px]"
+            onChange={handleInputChange}
+            placeholder="Ask about salaries, compensation, or negotiation..."
             disabled={isLoading}
+            className="flex-1"
           />
-          <Button type="submit" disabled={isLoading || !input.trim()}>
-            {isLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Thinking...
-              </>
-            ) : (
-              "Send Message"
-            )}
+          <Button type="submit" disabled={isLoading}>
+            Send
           </Button>
-        </form>
-      </Card>
-    </div>
-  )
+        </div>
+      </form>
+    </Card>
+  );
 }

@@ -1,50 +1,51 @@
-import { OpenAI } from "openai";
-import { NextResponse } from "next/server";
+import { togetherai } from '@ai-sdk/togetherai';
+import { streamText } from 'ai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-const systemPrompt = `You are an expert salary negotiation coach with years of experience helping professionals negotiate better compensation packages. 
-Your role is to provide practical, actionable advice for salary negotiations.
-
-Focus on:
-- Concrete negotiation tactics and strategies
-- Market research and salary data interpretation
-- Communication techniques for difficult conversations
-- Tips for timing salary discussions
-- Handling common negotiation scenarios
-- Benefits and perks negotiation
-
-Keep responses concise, practical, and actionable. Use examples where helpful.`;
+// Allow streaming responses up to 30 seconds
+export const maxDuration = 30;
 
 export async function POST(req: Request) {
   try {
-    const { message, messages } = await req.json();
+    const { messages } = await req.json();
 
-    const conversationHistory = messages.map((msg: any) => ({
-      role: msg.role,
-      content: msg.content,
-    }));
+    const result = streamText({
+      model: togetherai('meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo'),
+      system: `You are an expert AI Salary Coach with deep knowledge of compensation, salary ranges, negotiation strategies, and career development. Your goal is to help users understand their market value, negotiate better compensation packages, and make informed career decisions.
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemPrompt },
-        ...conversationHistory,
-        { role: "user", content: message },
-      ],
-      temperature: 0.7,
-      max_tokens: 500,
+Key responsibilities:
+- Provide accurate salary information and ranges based on industry standards
+- Share effective negotiation strategies and tips
+- Help users understand total compensation packages (base salary, bonuses, equity, benefits)
+- Guide users in career planning and advancement for better compensation
+- Explain industry-specific compensation trends and practices
+
+Always be professional, supportive, and data-driven in your responses. When discussing specific numbers, clarify that they are estimates and encourage users to validate with multiple sources.`,
+      messages,
     });
 
-    const reply = completion.choices[0]?.message?.content || "I apologize, but I couldn't generate a response. Please try again.";
+    return result.toDataStreamResponse({
+      getErrorMessage: (error) => {
+        if (error == null) {
+          return 'An unknown error occurred. Please try again.';
+        }
 
-    return NextResponse.json({ message: reply });
+        if (typeof error === 'string') {
+          return error;
+        }
+
+        if (error instanceof Error) {
+          return error.message;
+        }
+
+        return JSON.stringify(error);
+      },
+    });
   } catch (error) {
-    console.error("Salary Coach API Error:", error);
-    return NextResponse.json(
-      { error: "Failed to process your request" },
+    console.error('Salary Coach Error:', error);
+    return new Response(
+      JSON.stringify({
+        error: 'An error occurred while processing your request.',
+      }),
       { status: 500 }
     );
   }

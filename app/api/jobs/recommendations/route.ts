@@ -1,7 +1,7 @@
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { createChatCompletion } from "@/lib/openai";
+import { createChatCompletion } from "@/lib/together";
 
 export async function GET() {
   try {
@@ -59,7 +59,7 @@ export async function GET() {
         { role: "user", content: prompt }
       ],
       {
-        model: "gpt-4o-mini",
+        model: "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
         temperature: 0.7
       }
     );

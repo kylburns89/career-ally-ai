@@ -1,4 +1,4 @@
-import { SalaryCoach } from "@/components/salary/salary-coach"
+import { SalaryCoach } from '@/components/salary/salary-coach';
 
 export default function SalaryPage() {
   return (
@@ -6,5 +6,5 @@ export default function SalaryPage() {
       <h1 className="text-4xl font-bold mb-8">Salary Coach</h1>
       <SalaryCoach />
     </div>
-  )
+  );
 }
