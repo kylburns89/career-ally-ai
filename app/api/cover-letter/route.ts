@@ -1,9 +1,5 @@
-import { OpenAI } from "openai";
 import { NextResponse } from "next/server";
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+import { createChatCompletion } from "@/lib/openai";
 
 const systemPrompt = `You are an expert cover letter writer with years of experience in professional writing and recruitment. 
 Your task is to create compelling, personalized cover letters that effectively showcase the candidate's relevant experience and skills for the specific job they're applying to.
@@ -16,7 +12,8 @@ Guidelines for cover letter generation:
 - Keep the length appropriate (around 300-400 words)
 - Avoid clichés and generic statements
 - Include specific examples where possible
-- Ensure proper formatting with paragraphs`;
+- Ensure proper formatting with paragraphs
+- Match the style to the selected template (professional, creative, or technical)`;
 
 // Helper function to estimate tokens (rough estimate)
 function estimateTokenCount(text: string): number {
@@ -26,27 +23,36 @@ function estimateTokenCount(text: string): number {
 
 export async function POST(req: Request) {
   try {
-    const { jobTitle, companyName, jobDescription, keySkills, resumeUrl } = await req.json();
+    const { 
+      jobTitle, 
+      companyName, 
+      jobDescription, 
+      resumeContent, 
+      industry,
+      template 
+    } = await req.json();
 
-    // Fetch the resume content
-    const resumeResponse = await fetch(resumeUrl);
-    if (!resumeResponse.ok) {
-      throw new Error("Failed to fetch resume");
+    // Validate required fields
+    if (!jobDescription || !resumeContent) {
+      return NextResponse.json(
+        { error: "Job description and resume content are required" },
+        { status: 400 }
+      );
     }
-    const resumeContent = await resumeResponse.text();
 
     // Estimate total tokens for input
     const totalTokens = estimateTokenCount(
       systemPrompt + 
-      jobTitle + 
-      companyName + 
+      (jobTitle || "") + 
+      (companyName || "") + 
       jobDescription + 
-      keySkills + 
-      resumeContent
+      resumeContent +
+      (industry || "") +
+      (template || "")
     );
 
-    // GPT-4-turbo has a 128k context window, but we'll keep a safe limit
-    if (totalTokens > 100000) { // Safe limit to allow for response tokens
+    // Check token limit
+    if (totalTokens > 7500) {
       return NextResponse.json(
         { 
           error: "Content exceeds maximum length. Please reduce the length of your inputs.",
@@ -56,49 +62,51 @@ export async function POST(req: Request) {
       );
     }
 
-    const prompt = `Write a cover letter for a ${jobTitle} position at ${companyName}.
+    const prompt = `Write a ${template || "professional"} style cover letter for a ${jobTitle || "position"} at ${companyName || "the company"}.
 
 Job Description:
 ${jobDescription}
 
-Required Skills:
-${keySkills}
-
 Candidate's Resume:
 ${resumeContent}
 
-Focus on matching the candidate's most relevant experiences with the job requirements while maintaining a professional tone.`;
+${industry ? `Industry Context: ${industry}` : ""}
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
+Focus on matching the candidate's most relevant experiences with the job requirements while maintaining a ${template || "professional"} tone.`;
+
+    const coverLetter = await createChatCompletion(
+      [
         { role: "system", content: systemPrompt },
         { role: "user", content: prompt }
       ],
-      temperature: 0.7,
-      max_tokens: 16000, // GPT-4-turbo max output tokens
-    });
-
-    const coverLetter = completion.choices[0]?.message?.content || 
-      "Error: Unable to generate cover letter. Please try again.";
+      { model: "gpt-3.5-turbo", temperature: 0.7 }
+    );
 
     return NextResponse.json({ coverLetter });
   } catch (error: any) {
     console.error("Cover Letter Generation Error:", error);
     
-    // Handle different types of errors
+    // Handle rate limiting
     if (error?.response?.status === 429) {
       return NextResponse.json(
-        { 
-          error: "Request too large. While we support larger content with GPT-4-turbo, this request still exceeds our limits. Please try reducing your inputs.",
-          type: "token_limit"
-        },
+        { error: "Too many requests. Please try again later." },
         { status: 429 }
       );
     }
 
+    // Handle token limit
+    if (error?.response?.status === 413) {
+      return NextResponse.json(
+        { 
+          error: "Content too long. Please reduce the length of your inputs.",
+          type: "token_limit"
+        },
+        { status: 413 }
+      );
+    }
+
     return NextResponse.json(
-      { error: "Failed to generate cover letter" },
+      { error: "Failed to generate cover letter. Please try again." },
       { status: 500 }
     );
   }

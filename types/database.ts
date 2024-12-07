@@ -12,6 +12,8 @@ export interface PersonalInfo {
   email: string;
   phone: string;
   location: string;
+  linkedin?: string;
+  website?: string;
 }
 
 export interface Experience {
@@ -27,10 +29,62 @@ export interface Education {
   year: string;
 }
 
+export interface Project {
+  name: string;
+  description: string;
+  technologies: string;
+  link?: string;
+}
+
+export interface Certification {
+  name: string;
+  issuer: string;
+  date: string;
+  link?: string;
+}
+
+export interface DetailedImprovement {
+  section: string;
+  original: string;
+  improved: string;
+  explanation: string;
+}
+
 export interface ResumeAnalysis {
-  strengths: string[];
-  suggestions: string[];
-  generated_at: string;
+  score: number;
+  sections: {
+    [key: string]: {
+      score: number;
+      feedback: string[];
+      suggestions: string[];
+      impact: "high" | "medium" | "low";
+    };
+  };
+  atsCompatibility: {
+    score: number;
+    issues: string[];
+    suggestions: string[];
+    keywords: {
+      present: string[];
+      missing: string[];
+    };
+    formatting: {
+      issues: string[];
+      suggestions: string[];
+    };
+  };
+  industryComparison: {
+    score: number;
+    strengths: string[];
+    gaps: string[];
+    recommendations: string[];
+  };
+  actionItems: {
+    high: string[];
+    medium: string[];
+    low: string[];
+  };
+  improvements: DetailedImprovement[];
 }
 
 export interface ResumeContent {
@@ -38,6 +92,9 @@ export interface ResumeContent {
   experience: Experience[];
   education: Education[];
   skills: string[];
+  projects?: Project[];
+  certifications?: Certification[];
+  sections?: string[];
   template: string;
 }
 
@@ -58,6 +115,9 @@ export interface ResumeData {
   experience: Experience[];
   education: Education[];
   skills: string[];
+  projects?: Project[];
+  certifications?: Certification[];
+  sections?: string[];
   template: string;
 }
 
@@ -67,6 +127,7 @@ export interface SavedResume {
   analysis?: ResumeAnalysis;
 }
 
+// Rest of the Database interface remains unchanged...
 export interface Database {
   public: {
     Tables: {

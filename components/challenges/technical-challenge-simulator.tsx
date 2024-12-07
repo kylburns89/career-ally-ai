@@ -1,138 +1,63 @@
-"use client"
+'use client'
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Textarea } from "@/components/ui/textarea"
-
-type Message = {
-  role: "assistant" | "user"
-  content: string
-}
+import { useState } from 'react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Input } from '@/components/ui/input'
+import Chat from '@/components/chat/chat'
 
 export default function TechnicalChallengeSimulator() {
-  const [messages, setMessages] = useState<Message[]>([])
-  const [input, setInput] = useState("")
-  const [isSessionStarted, setIsSessionStarted] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
+  const [selectedTopic, setSelectedTopic] = useState('Algorithms')
+  const [customTopic, setCustomTopic] = useState('')
 
-  const startSession = async () => {
-    setIsSessionStarted(true)
-    setIsLoading(true)
-    try {
-      const response = await fetch("/api/challenges/feedback", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ action: "start" }),
-      })
-      
-      const data = await response.json()
-      setMessages([{ role: "assistant", content: data.message }])
-    } catch (error) {
-      console.error("Failed to start session:", error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
+  const currentTopic = selectedTopic === 'Other' ? customTopic : selectedTopic
+  const systemPrompt = `You are an experienced technical interviewer. Present coding challenges and problems related to ${currentTopic}. Provide hints when needed, evaluate solutions, and offer constructive feedback to help improve problem-solving skills.`
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!input.trim()) return
-
-    const userMessage = input.trim()
-    setInput("")
-    setMessages((prev) => [...prev, { role: "user", content: userMessage }])
-    setIsLoading(true)
-
-    try {
-      const response = await fetch("/api/challenges/feedback", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ message: userMessage }),
-      })
-      
-      const data = await response.json()
-      setMessages((prev) => [...prev, { role: "assistant", content: data.message }])
-    } catch (error) {
-      console.error("Failed to get response:", error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const endSession = () => {
-    setIsSessionStarted(false)
-    setMessages([])
-  }
+  const initialMessage = `Welcome to your ${currentTopic} practice session! I'll present you with technical challenges and provide feedback on your solutions. Would you like to start with an easy, medium, or hard problem?`
 
   return (
-    <Card className="w-full max-w-4xl mx-auto">
-      <div className="p-6">
-        {!isSessionStarted ? (
-          <div className="text-center">
-            <h2 className="text-2xl font-semibold mb-4">Ready to Practice?</h2>
-            <Button onClick={startSession} disabled={isLoading}>
-              {isLoading ? "Starting..." : "Start Practice Session"}
-            </Button>
-          </div>
-        ) : (
-          <>
-            <ScrollArea className="h-[500px] pr-4">
-              <div className="space-y-4">
-                {messages.map((message, index) => (
-                  <div
-                    key={index}
-                    className={`flex ${
-                      message.role === "assistant" ? "justify-start" : "justify-end"
-                    }`}
-                  >
-                    <div
-                      className={`rounded-lg px-4 py-2 max-w-[80%] ${
-                        message.role === "assistant"
-                          ? "bg-secondary"
-                          : "bg-primary text-primary-foreground"
-                      }`}
-                    >
-                      <pre className="whitespace-pre-wrap font-sans">
-                        {message.content}
-                      </pre>
-                    </div>
-                  </div>
-                ))}
-                {isLoading && (
-                  <div className="flex justify-start">
-                    <div className="bg-secondary rounded-lg px-4 py-2">
-                      Thinking...
-                    </div>
-                  </div>
-                )}
-              </div>
-            </ScrollArea>
-            <form onSubmit={handleSubmit} className="mt-4 space-y-4">
-              <Textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Type your response..."
-                disabled={isLoading}
-                className="min-h-[100px] font-mono"
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Technical Challenge Simulator</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Select
+              value={selectedTopic}
+              onValueChange={setSelectedTopic}
+            >
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Select a topic" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Algorithms">Algorithms</SelectItem>
+                <SelectItem value="Data Structures">Data Structures</SelectItem>
+                <SelectItem value="System Design">System Design</SelectItem>
+                <SelectItem value="Database">Database</SelectItem>
+                <SelectItem value="Web Development">Web Development</SelectItem>
+                <SelectItem value="Other">Other</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {selectedTopic === 'Other' && (
+              <Input
+                type="text"
+                placeholder="Enter custom topic"
+                value={customTopic}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCustomTopic(e.target.value)}
+                className="w-[200px]"
               />
-              <div className="flex justify-between">
-                <Button type="button" variant="outline" onClick={endSession}>
-                  End Session
-                </Button>
-                <Button type="submit" disabled={isLoading || !input.trim()}>
-                  Send Response
-                </Button>
-              </div>
-            </form>
-          </>
-        )}
-      </div>
-    </Card>
+            )}
+          </div>
+
+          <Chat 
+            apiEndpoint="/api/challenges/feedback"
+            systemPrompt={systemPrompt}
+            initialMessage={initialMessage}
+          />
+        </CardContent>
+      </Card>
+    </div>
   )
 }

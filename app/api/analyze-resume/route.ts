@@ -1,12 +1,10 @@
 import { NextResponse } from "next/server";
-import OpenAI from "openai";
+import Together from "together-ai";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
-import type { ResumeContent, ResumeAnalysis } from "@/types/database";
+import type { ResumeContent, ResumeAnalysis } from "../../../types/database";
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const together = new Together({ apiKey: process.env.TOGETHER_API_KEY ?? "" });
 
 function formatResumeForAnalysis(resume: ResumeContent): string {
   return `
@@ -17,14 +15,14 @@ Phone: ${resume.personalInfo.phone}
 Location: ${resume.personalInfo.location}
 
 WORK EXPERIENCE:
-${resume.experience.map(exp => `
+${resume.experience.map((exp: { title: string; company: string; duration: string; description: string }) => `
 • ${exp.title} at ${exp.company}
   Duration: ${exp.duration}
   ${exp.description}
 `).join('\n')}
 
 EDUCATION:
-${resume.education.map(edu => `
+${resume.education.map((edu: { degree: string; school: string; year: string }) => `
 • ${edu.degree} from ${edu.school} (${edu.year})
 `).join('\n')}
 
@@ -32,6 +30,67 @@ SKILLS:
 ${resume.skills.join(', ')}
 `;
 }
+
+const systemPrompt = `You are an expert resume reviewer with years of experience in talent acquisition and career coaching. 
+Your task is to analyze the resume and provide feedback in a specific JSON format.
+
+IMPORTANT FORMATTING RULES:
+1. Your response must be ONLY valid JSON - no other text before or after
+2. All numbers must be numeric values (e.g., 85 not "85")
+3. All text must be in double quotes
+4. Use exactly this structure:
+
+{
+  "score": 85,
+  "sections": {
+    "experience": {
+      "score": 80,
+      "feedback": ["Strong experience section", "Good progression shown"],
+      "suggestions": ["Add more quantifiable achievements", "Include technologies used"],
+      "impact": "high"
+    }
+  },
+  "atsCompatibility": {
+    "score": 75,
+    "issues": ["Missing key industry keywords", "Format could be improved"],
+    "suggestions": ["Add more industry-specific terms", "Use standard section headings"],
+    "keywords": {
+      "present": ["leadership", "management", "development"],
+      "missing": ["agile", "scrum", "stakeholder"]
+    },
+    "formatting": {
+      "issues": ["Inconsistent spacing", "Complex formatting"],
+      "suggestions": ["Simplify layout", "Use standard fonts"]
+    }
+  },
+  "industryComparison": {
+    "score": 70,
+    "strengths": ["Technical expertise", "Project management"],
+    "gaps": ["Leadership experience", "Industry certifications"],
+    "recommendations": ["Pursue relevant certifications", "Highlight team leadership"]
+  },
+  "actionItems": {
+    "high": ["Add metrics to achievements", "Include more keywords"],
+    "medium": ["Improve formatting consistency", "Add certifications"],
+    "low": ["Consider adding volunteer work", "Update skills section"]
+  },
+  "improvements": [
+    {
+      "section": "Experience - Software Engineer at Tech Corp",
+      "original": "Developed features for the company's main product",
+      "improved": "Led development of 3 key features for flagship product, increasing user engagement by 45% and reducing load times by 30%",
+      "explanation": "The improved version adds specific metrics and leadership aspects, making the achievement more impactful and quantifiable"
+    },
+    {
+      "section": "Skills Section",
+      "original": "Programming, databases, web development",
+      "improved": "Python, React, Node.js, PostgreSQL, AWS, CI/CD, Agile methodologies",
+      "explanation": "Specific technologies and methodologies are more impactful than general categories, and these align better with ATS requirements"
+    }
+  ]
+}
+
+Remember: Your response must be ONLY the JSON object - no additional text or explanations.`;
 
 export async function POST(req: Request) {
   try {
@@ -48,74 +107,40 @@ export async function POST(req: Request) {
 
     const formattedResume = formatResumeForAnalysis(resume as ResumeContent);
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+    // Use Together.ai for completion
+    const response = await together.chat.completions.create({
+      model: "meta-llama/Llama-3-8b-chat-hf",
       messages: [
-        {
-          role: "system",
-          content: `You are an expert resume reviewer with years of experience in talent acquisition and career coaching. 
-          Analyze the resume and provide detailed feedback in the following format:
-
-          STRENGTHS:
-          - [Strength 1]
-          - [Strength 2]
-          ...
-
-          SUGGESTIONS:
-          - [Suggestion 1]
-          - [Suggestion 2]
-          ...
-
-          Focus on:
-          1. Content quality and relevance
-          2. Impact and achievement metrics
-          3. Skills alignment with industry standards
-          4. Professional presentation and clarity
-          5. Keywords and ATS optimization`,
-        },
-        {
-          role: "user",
-          content: `Please analyze this resume:\n\n${formattedResume}`,
-        },
+        { role: "system", content: systemPrompt },
+        { role: "user", content: `Analyze this resume and respond with ONLY a JSON object:\n\n${formattedResume}` }
       ],
-      temperature: 0.7,
-      max_tokens: 1000,
+      temperature: 0.3, // Lower temperature for more consistent formatting
+      max_tokens: 4000,
     });
 
-    const analysis = completion.choices[0].message.content;
-    
-    if (!analysis) {
-      throw new Error("No analysis received from OpenAI");
+    const content = response.choices[0]?.message?.content;
+
+    // Ensure we have a valid response
+    if (!content) {
+      throw new Error("No response received from AI");
     }
 
-    // Parse the analysis into structured format
-    const strengthsMatch = analysis.match(/STRENGTHS:\n((?:- [^\n]+\n?)+)/);
-    const suggestionsMatch = analysis.match(/SUGGESTIONS:\n((?:- [^\n]+\n?)+)/);
+    // Log the raw response for debugging
+    console.log("Raw AI response:", content);
 
-    const strengths = strengthsMatch ? 
-      strengthsMatch[1]
-        .split('\n')
-        .filter(line => line.startsWith('- '))
-        .map(line => line.replace('- ', '').trim())
-      : [];
+    // Try to clean the response if needed
+    const cleanedContent = content.trim().replace(/```json\n?|\n?```/g, '');
+    console.log("Cleaned content:", cleanedContent);
 
-    const suggestions = suggestionsMatch ? 
-      suggestionsMatch[1]
-        .split('\n')
-        .filter(line => line.startsWith('- '))
-        .map(line => line.replace('- ', '').trim())
-      : [];
-
-    if (strengths.length === 0 && suggestions.length === 0) {
+    // Parse the JSON response
+    let analysisResult: ResumeAnalysis;
+    try {
+      analysisResult = JSON.parse(cleanedContent);
+    } catch (error) {
+      console.error("Failed to parse AI response:", error);
+      console.error("Response content:", cleanedContent);
       throw new Error("Failed to parse analysis results");
     }
-
-    // Create the analysis object
-    const analysisResult: ResumeAnalysis = {
-      strengths,
-      suggestions,
-      generated_at: new Date().toISOString()
-    };
 
     // Store the analysis in the database
     const supabase = createRouteHandlerClient({ cookies });
@@ -158,7 +183,7 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ 
-      ...updatedResume,
+      analysis: analysisResult,
       success: true 
     });
   } catch (error) {

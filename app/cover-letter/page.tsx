@@ -1,4 +1,4 @@
-import { CoverLetterGenerator } from "@/components/cover-letter/cover-letter-generator"
+import { CoverLetterGenerator } from "@/components/cover-letter/cover-letter-generator";
 
 export default function CoverLetterPage() {
   return (

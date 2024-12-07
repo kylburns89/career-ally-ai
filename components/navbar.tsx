@@ -69,34 +69,6 @@ const components: { title: string; href: string; description: string }[] = [
   },
 ]
 
-const resources: { title: string; href: string; description: string }[] = [
-  {
-    title: "Resume Resources",
-    href: "/resources/resume",
-    description: "Expert tips and guides for resume writing",
-  },
-  {
-    title: "Interview Resources",
-    href: "/resources/interview",
-    description: "Preparation guides for technical and behavioral interviews",
-  },
-  {
-    title: "Technical Resources",
-    href: "/resources/technical",
-    description: "Programming resources and practice materials",
-  },
-  {
-    title: "Job Search Resources",
-    href: "/resources/job-search",
-    description: "Job search strategies and networking tips",
-  },
-  {
-    title: "Salary Resources",
-    href: "/resources/salary",
-    description: "Compensation research and negotiation guides",
-  },
-]
-
 const Navbar = () => {
   const router = useRouter()
   const supabase = createClientComponentClient()
@@ -161,22 +133,6 @@ const Navbar = () => {
                           href={component.href}
                         >
                           {component.description}
-                        </ListItem>
-                      ))}
-                    </ul>
-                  </NavigationMenuContent>
-                </NavigationMenuItem>
-                <NavigationMenuItem>
-                  <NavigationMenuTrigger>Resources</NavigationMenuTrigger>
-                  <NavigationMenuContent>
-                    <ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2 lg:w-[600px]">
-                      {resources.map((resource) => (
-                        <ListItem
-                          key={resource.title}
-                          title={resource.title}
-                          href={resource.href}
-                        >
-                          {resource.description}
                         </ListItem>
                       ))}
                     </ul>

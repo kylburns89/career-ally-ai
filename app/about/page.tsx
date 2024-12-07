@@ -1,7 +1,12 @@
+"use client"
+
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { RocketIcon, SparklesIcon, BrainIcon, ShieldCheckIcon, HeartIcon } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { useEffect, useState } from "react";
 
 const benefits = [
   {
@@ -32,6 +37,19 @@ const benefits = [
 ];
 
 export default function About() {
+  const router = useRouter();
+  const supabase = createClientComponentClient();
+  const [isLoading, setIsLoading] = useState(true);
+
+  const handleStartJourney = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      router.push("/"); // Redirect to home if logged in
+    } else {
+      router.push("/auth/login"); // Redirect to login if not logged in
+    }
+  };
+
   return (
     <div className="space-y-12 py-8">
       <section className="text-center space-y-6">
@@ -40,8 +58,8 @@ export default function About() {
           Kareerly is your intelligent career companion, combining advanced artificial intelligence with comprehensive career development tools to help you achieve your professional goals.
         </p>
         <div className="flex justify-center gap-4">
-          <Button asChild size="lg">
-            <Link href="/auth/login">Start Your Journey</Link>
+          <Button size="lg" onClick={handleStartJourney}>
+            Start Your Journey
           </Button>
         </div>
       </section>
@@ -67,8 +85,8 @@ export default function About() {
           We believe everyone deserves access to powerful career development tools. Our mission is to democratize career advancement by providing AI-powered tools that were once only available through expensive career coaching services.
         </p>
         <div className="flex justify-center gap-4">
-          <Button asChild variant="outline">
-            <Link href="/auth/login">Explore Features</Link>
+          <Button variant="outline" onClick={handleStartJourney}>
+            Explore Features
           </Button>
         </div>
       </section>

@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ResumeBuilder from "@/components/resume/resume-builder";
 import ResumeAnalyzer from "@/components/resume/resume-analyzer";
-import ResumeTemplates from "@/components/resume/resume-templates";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
@@ -82,16 +81,6 @@ export default function ResumePage() {
     }
   }, [activeResume]);
 
-  const handleTemplateSelect = (templateId: string) => {
-    setSelectedTemplate(templateId);
-    // Switch to builder tab after template selection
-    const tabsList = document.querySelector('[role="tablist"]');
-    const builderTab = tabsList?.querySelector('[value="builder"]') as HTMLButtonElement;
-    if (builderTab) {
-      builderTab.click();
-    }
-  };
-
   const handleResumeSelect = (resume: Resume) => {
     const content = resume.content as ResumeData;
     setActiveResume(JSON.stringify(resume));
@@ -110,11 +99,11 @@ export default function ResumePage() {
     setActiveResumeId(null);
     setActiveAnalysis(null);
     setSelectedTemplate(null);
-    // Switch to templates tab
+    // Switch to builder tab
     const tabsList = document.querySelector('[role="tablist"]');
-    const templatesTab = tabsList?.querySelector('[value="templates"]') as HTMLButtonElement;
-    if (templatesTab) {
-      templatesTab.click();
+    const builderTab = tabsList?.querySelector('[value="builder"]') as HTMLButtonElement;
+    if (builderTab) {
+      builderTab.click();
     }
   };
 
@@ -215,18 +204,11 @@ export default function ResumePage() {
           </Card>
         ) : null}
 
-        <Tabs defaultValue="templates" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="templates">Templates</TabsTrigger>
+        <Tabs defaultValue="builder" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="builder">Builder</TabsTrigger>
             <TabsTrigger value="analyzer">AI Analysis</TabsTrigger>
           </TabsList>
-
-          <TabsContent value="templates">
-            <Card className="p-6">
-              <ResumeTemplates onSelect={handleTemplateSelect} />
-            </Card>
-          </TabsContent>
 
           <TabsContent value="builder">
             <ResumeBuilder 
