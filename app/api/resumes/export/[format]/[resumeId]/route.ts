@@ -1,7 +1,21 @@
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import puppeteer from "puppeteer";
+import jsPDF from "jspdf";
+
+// Helper function to format description text into bullet points
+function formatDescription(description: string): string[] {
+  return description
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line)
+    .map(line => {
+      if (line.startsWith('•') || line.startsWith('-')) {
+        return line.substring(1).trim();
+      }
+      return line;
+    });
+}
 
 export async function GET(
   request: Request,
@@ -33,92 +47,44 @@ export async function GET(
       return new NextResponse("Only PDF format is supported", { status: 400 });
     }
 
-    // Launch browser with specific viewport
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
-    const page = await browser.newPage();
-    
-    // Set viewport to A4 size
-    await page.setViewport({
-      width: 800,
-      height: 1130, // Approximate A4 height at 96 DPI
-      deviceScaleFactor: 2, // Increase resolution
+    // Create new PDF document (A4 size)
+    const doc = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4"
     });
 
-    // Inject required styles and content
-    await page.setContent(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <script src="https://cdn.tailwindcss.com"></script>
-          <style>
-            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-            body {
-              font-family: 'Inter', sans-serif;
-              margin: 0;
-              padding: 0;
-            }
-            @page {
-              margin: 0;
-              size: A4;
-            }
-            /* Ensure all content is visible in PDF */
-            #resume {
-              width: 100%;
-              height: 100%;
-              overflow: visible;
-            }
-            /* Force background colors to show in PDF */
-            * {
-              -webkit-print-color-adjust: exact;
-              print-color-adjust: exact;
-            }
-          </style>
-        </head>
-        <body>
-          <div id="resume">
-            ${generateResumeHTML(resume.content)}
-          </div>
-          <script>
-            // Wait for Tailwind to initialize
-            document.addEventListener('DOMContentLoaded', function() {
-              setTimeout(() => {
-                window.status = 'ready';
-              }, 1000);
-            });
-          </script>
-        </body>
-      </html>
-    `, {
-      waitUntil: 'networkidle0', // Wait for all network connections to finish
-    });
+    // Generate PDF based on template
+    switch (resume.content.template) {
+      case 'creative':
+        generateCreativePDF(doc, resume.content);
+        break;
+      case 'technical':
+        generateTechnicalPDF(doc, resume.content);
+        break;
+      case 'modern':
+        generateModernPDF(doc, resume.content);
+        break;
+      case 'executive':
+        generateExecutivePDF(doc, resume.content);
+        break;
+      case 'minimal':
+        generateMinimalPDF(doc, resume.content);
+        break;
+      default:
+        generateProfessionalPDF(doc, resume.content);
+    }
 
-    // Wait for styles and Tailwind to be applied
-    await page.waitForFunction(() => {
-      const style = window.getComputedStyle(document.body);
-      return style.fontFamily.includes('Inter') && window.status === 'ready';
-    }, { timeout: 5000 });
+    // Get PDF as Uint8Array for better handling in serverless environment
+    const pdfBuffer = doc.output('arraybuffer');
+    const pdfArray = new Uint8Array(pdfBuffer);
 
-    // Generate PDF with specific settings
-    const pdf = await page.pdf({
-      format: 'A4',
-      printBackground: true,
-      margin: { top: '1cm', right: '1cm', bottom: '1cm', left: '1cm' },
-      preferCSSPageSize: true,
-      displayHeaderFooter: false,
-    });
-
-    await browser.close();
-
-    // Return PDF
-    return new NextResponse(pdf, {
+    // Return PDF with proper headers
+    return new NextResponse(pdfArray, {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="resume.pdf"`,
+        'Content-Length': pdfArray.length.toString(),
       },
     });
   } catch (error) {
@@ -127,151 +93,539 @@ export async function GET(
   }
 }
 
-function generateResumeHTML(content: any) {
-  // Generate HTML based on the template and content
-  const template = content.template || "professional";
+function generateProfessionalPDF(doc: jsPDF, content: any) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 20;
+  let yPos = 20;
+
+  // Header
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(24);
+  const nameWidth = doc.getTextDimensions(content.personalInfo.fullName).w;
+  doc.text(content.personalInfo.fullName, (pageWidth - nameWidth) / 2, yPos);
+  yPos += 10;
+
+  // Contact Info
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  const contactInfo = `${content.personalInfo.email} • ${content.personalInfo.phone} • ${content.personalInfo.location}`;
+  const contactWidth = doc.getTextDimensions(contactInfo).w;
+  doc.text(contactInfo, (pageWidth - contactWidth) / 2, yPos);
+  yPos += 15;
+
+  // Experience Section
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.text("Experience", margin, yPos);
+  yPos += 2;
+  doc.setLineWidth(0.5);
+  doc.line(margin, yPos + 3, pageWidth - margin, yPos + 3);
+  yPos += 8;
+
+  content.experience.forEach((exp: any) => {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.text(exp.title, margin, yPos);
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    const companyText = `${exp.company} - ${exp.duration}`;
+    doc.text(companyText, margin, yPos + 5);
+    
+    yPos += 10;
+    const bullets = formatDescription(exp.description);
+    bullets.forEach(bullet => {
+      doc.text(`• ${bullet}`, margin + 5, yPos);
+      const splitBullet = doc.splitTextToSize(`• ${bullet}`, pageWidth - (2 * margin) - 5);
+      yPos += splitBullet.length * 5;
+    });
+    
+    yPos += 5;
+    
+    if (yPos > doc.internal.pageSize.getHeight() - 20) {
+      doc.addPage();
+      yPos = 20;
+    }
+  });
+
+  // Education Section
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.text("Education", margin, yPos);
+  yPos += 2;
+  doc.setLineWidth(0.5);
+  doc.line(margin, yPos + 3, pageWidth - margin, yPos + 3);
+  yPos += 8;
+
+  content.education.forEach((edu: any) => {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.text(edu.degree, margin, yPos);
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.text(`${edu.school} - ${edu.year}`, margin, yPos + 5);
+    
+    yPos += 12;
+    
+    if (yPos > doc.internal.pageSize.getHeight() - 20) {
+      doc.addPage();
+      yPos = 20;
+    }
+  });
+
+  // Skills Section
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.text("Skills", margin, yPos);
+  yPos += 2;
+  doc.setLineWidth(0.5);
+  doc.line(margin, yPos + 3, pageWidth - margin, yPos + 3);
+  yPos += 8;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  const skillsText = content.skills.join(" • ");
+  const splitSkills = doc.splitTextToSize(skillsText, pageWidth - (2 * margin));
+  doc.text(splitSkills, margin, yPos);
+}
+
+function generateCreativePDF(doc: jsPDF, content: any) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 20;
+  let yPos = 20;
+
+  // Header with purple background
+  doc.setFillColor(147, 51, 234); // Purple background
+  doc.rect(0, 0, pageWidth, 40, 'F');
   
-  // You can create different HTML structures for each template
-  switch (template) {
-    case "professional":
-      return generateProfessionalHTML(content);
-    case "creative":
-      return generateCreativeHTML(content);
-    case "technical":
-      return generateTechnicalHTML(content);
-    case "modern":
-      return generateModernHTML(content);
-    case "executive":
-      return generateExecutiveHTML(content);
-    case "minimal":
-      return generateMinimalHTML(content);
-    default:
-      return generateProfessionalHTML(content);
+  doc.setTextColor(255, 255, 255); // White text
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(24);
+  const nameWidth = doc.getTextDimensions(content.personalInfo.fullName).w;
+  doc.text(content.personalInfo.fullName, (pageWidth - nameWidth) / 2, yPos);
+  yPos += 10;
+
+  doc.setFontSize(10);
+  const contactInfo = `${content.personalInfo.email} • ${content.personalInfo.phone} • ${content.personalInfo.location}`;
+  const contactWidth = doc.getTextDimensions(contactInfo).w;
+  doc.text(contactInfo, (pageWidth - contactWidth) / 2, yPos);
+  yPos += 25;
+
+  // Reset text color
+  doc.setTextColor(0, 0, 0);
+
+  // Two-column layout
+  const columnWidth = (pageWidth - (3 * margin)) / 2;
+  let leftColumnY = yPos;
+  let rightColumnY = yPos;
+
+  // Left column (Experience and Education)
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.setTextColor(147, 51, 234);
+  doc.text("Experience", margin, leftColumnY);
+  leftColumnY += 8;
+
+  doc.setTextColor(0, 0, 0);
+  content.experience.forEach((exp: any) => {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.text(exp.title, margin, leftColumnY);
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(147, 51, 234);
+    doc.text(exp.company, margin, leftColumnY + 5);
+    doc.setTextColor(128, 128, 128);
+    doc.text(exp.duration, margin, leftColumnY + 10);
+    
+    leftColumnY += 15;
+    doc.setTextColor(0, 0, 0);
+    const bullets = formatDescription(exp.description);
+    bullets.forEach(bullet => {
+      const splitBullet = doc.splitTextToSize(`• ${bullet}`, columnWidth);
+      doc.text(splitBullet, margin, leftColumnY);
+      leftColumnY += splitBullet.length * 5;
+    });
+    
+    leftColumnY += 5;
+  });
+
+  // Right column (Skills)
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.setTextColor(147, 51, 234);
+  doc.text("Skills", 2 * margin + columnWidth, rightColumnY);
+  rightColumnY += 8;
+
+  doc.setTextColor(0, 0, 0);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  content.skills.forEach((skill: string) => {
+    doc.setFillColor(247, 237, 255);
+    const skillWidth = doc.getTextDimensions(skill).w + 4;
+    doc.roundedRect(2 * margin + columnWidth, rightColumnY - 4, skillWidth, 8, 2, 2, 'F');
+    doc.text(skill, 2 * margin + columnWidth + 2, rightColumnY);
+    rightColumnY += 10;
+  });
+}
+
+function generateTechnicalPDF(doc: jsPDF, content: any) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 20;
+  let yPos = 20;
+
+  // Header with monospace font and blue accent
+  doc.setFont("courier", "bold");
+  doc.setFontSize(20);
+  doc.text(content.personalInfo.fullName, margin, yPos);
+  yPos += 8;
+
+  // Contact info with icons
+  doc.setFont("courier", "normal");
+  doc.setFontSize(10);
+  doc.text(`📧 ${content.personalInfo.email}`, margin, yPos);
+  yPos += 5;
+  doc.text(`📱 ${content.personalInfo.phone}`, margin, yPos);
+  yPos += 5;
+  doc.text(`📍 ${content.personalInfo.location}`, margin, yPos);
+  yPos += 15;
+
+  // Experience Section
+  doc.setFont("courier", "bold");
+  doc.setFontSize(14);
+  doc.setTextColor(0, 122, 255); // Blue color
+  doc.text("<Experience />", margin, yPos);
+  yPos += 8;
+
+  doc.setTextColor(0, 0, 0);
+  content.experience.forEach((exp: any) => {
+    doc.setFont("courier", "bold");
+    doc.setFontSize(12);
+    doc.text(exp.title, margin, yPos);
+    
+    doc.setFont("courier", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(0, 122, 255);
+    doc.text(exp.company, margin, yPos + 5);
+    doc.setTextColor(128, 128, 128);
+    doc.text(exp.duration, margin, yPos + 10);
+    
+    yPos += 15;
+    doc.setTextColor(0, 0, 0);
+    const bullets = formatDescription(exp.description);
+    bullets.forEach(bullet => {
+      const splitBullet = doc.splitTextToSize(`> ${bullet}`, pageWidth - (2 * margin));
+      doc.text(splitBullet, margin, yPos);
+      yPos += splitBullet.length * 5;
+    });
+    
+    yPos += 5;
+    
+    if (yPos > doc.internal.pageSize.getHeight() - 20) {
+      doc.addPage();
+      yPos = 20;
+    }
+  });
+
+  // Education Section
+  doc.setFont("courier", "bold");
+  doc.setFontSize(14);
+  doc.setTextColor(0, 122, 255);
+  doc.text("<Education />", margin, yPos);
+  yPos += 8;
+
+  doc.setTextColor(0, 0, 0);
+  content.education.forEach((edu: any) => {
+    doc.setFont("courier", "bold");
+    doc.setFontSize(12);
+    doc.text(edu.degree, margin, yPos);
+    
+    doc.setFont("courier", "normal");
+    doc.setFontSize(10);
+    doc.text(`${edu.school} - ${edu.year}`, margin, yPos + 5);
+    
+    yPos += 12;
+  });
+
+  // Skills Section
+  doc.setFont("courier", "bold");
+  doc.setFontSize(14);
+  doc.setTextColor(0, 122, 255);
+  doc.text("<Skills />", margin, yPos);
+  yPos += 8;
+
+  doc.setTextColor(0, 0, 0);
+  doc.setFont("courier", "normal");
+  doc.setFontSize(10);
+  const skillsPerRow = 3;
+  for (let i = 0; i < content.skills.length; i += skillsPerRow) {
+    const rowSkills = content.skills.slice(i, i + skillsPerRow);
+    const skillText = rowSkills.join("    ");
+    doc.text(skillText, margin, yPos);
+    yPos += 6;
   }
 }
 
-function generateProfessionalHTML(content: any) {
-  return `
-    <div class="max-w-[800px] mx-auto p-8 bg-white">
-      <div class="text-center mb-8">
-        <h1 class="text-3xl font-bold text-gray-800 mb-2">${content.personalInfo.fullName}</h1>
-        <div class="text-gray-600 space-x-4">
-          <span>${content.personalInfo.email}</span>
-          <span>•</span>
-          <span>${content.personalInfo.phone}</span>
-          <span>•</span>
-          <span>${content.personalInfo.location}</span>
-        </div>
-      </div>
+function generateModernPDF(doc: jsPDF, content: any) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 20;
+  let yPos = 20;
 
-      <div class="mb-8">
-        <h2 class="text-xl font-bold text-gray-800 border-b-2 border-gray-300 mb-4">Experience</h2>
-        ${content.experience.map((exp: any) => `
-          <div class="mb-4">
-            <div class="flex justify-between items-start">
-              <div>
-                <h3 class="font-semibold text-gray-800">${exp.title}</h3>
-                <div class="text-gray-600">${exp.company}</div>
-              </div>
-              <div class="text-gray-600">${exp.duration}</div>
-            </div>
-            <p class="text-gray-700 mt-2">${exp.description}</p>
-          </div>
-        `).join("")}
-      </div>
+  // Header with emerald accent
+  doc.setFont("helvetica", "light");
+  doc.setFontSize(28);
+  doc.text(content.personalInfo.fullName, margin, yPos);
+  yPos += 10;
 
-      <div class="mb-8">
-        <h2 class="text-xl font-bold text-gray-800 border-b-2 border-gray-300 mb-4">Education</h2>
-        ${content.education.map((edu: any) => `
-          <div class="mb-4">
-            <div class="flex justify-between items-start">
-              <div>
-                <h3 class="font-semibold text-gray-800">${edu.degree}</h3>
-                <div class="text-gray-600">${edu.school}</div>
-              </div>
-              <div class="text-gray-600">${edu.year}</div>
-            </div>
-          </div>
-        `).join("")}
-      </div>
+  doc.setFontSize(10);
+  doc.setTextColor(16, 185, 129); // Emerald color
+  const contactInfo = `${content.personalInfo.email} • ${content.personalInfo.phone} • ${content.personalInfo.location}`;
+  doc.text(contactInfo, margin, yPos);
+  yPos += 15;
 
-      <div>
-        <h2 class="text-xl font-bold text-gray-800 border-b-2 border-gray-300 mb-4">Skills</h2>
-        <div class="flex flex-wrap gap-2">
-          ${content.skills.map((skill: string) => `
-            <span class="bg-gray-100 text-gray-800 px-3 py-1 rounded-full">
-              ${skill}
-            </span>
-          `).join("")}
-        </div>
-      </div>
-    </div>
-  `;
+  // Sections
+  const sections = ['Experience', 'Education', 'Skills'];
+  sections.forEach((section, index) => {
+    if (index > 0) yPos += 10;
+
+    doc.setFont("helvetica", "light");
+    doc.setFontSize(18);
+    doc.setTextColor(16, 185, 129);
+    doc.text(section, margin, yPos);
+    yPos += 8;
+
+    doc.setTextColor(0, 0, 0);
+    switch (section) {
+      case 'Experience':
+        content.experience.forEach((exp: any) => {
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(12);
+          const titleWidth = doc.getTextDimensions(exp.title).w;
+          doc.text(exp.title, margin, yPos);
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(10);
+          doc.text(exp.duration, pageWidth - margin - doc.getTextDimensions(exp.duration).w, yPos);
+          
+          doc.setTextColor(16, 185, 129);
+          doc.text(exp.company, margin, yPos + 5);
+          
+          yPos += 10;
+          doc.setTextColor(0, 0, 0);
+          const bullets = formatDescription(exp.description);
+          bullets.forEach(bullet => {
+            const splitBullet = doc.splitTextToSize(`• ${bullet}`, pageWidth - (2 * margin));
+            doc.text(splitBullet, margin, yPos);
+            yPos += splitBullet.length * 5;
+          });
+          
+          yPos += 5;
+        });
+        break;
+
+      case 'Education':
+        content.education.forEach((edu: any) => {
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(12);
+          doc.text(edu.degree, margin, yPos);
+          doc.setFont("helvetica", "normal");
+          doc.text(edu.year, pageWidth - margin - doc.getTextDimensions(edu.year).w, yPos);
+          
+          doc.setTextColor(16, 185, 129);
+          doc.text(edu.school, margin, yPos + 5);
+          
+          yPos += 10;
+          doc.setTextColor(0, 0, 0);
+        });
+        break;
+
+      case 'Skills':
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        const skillsPerRow = Math.floor((pageWidth - 2 * margin) / 30);
+        for (let i = 0; i < content.skills.length; i += skillsPerRow) {
+          const rowSkills = content.skills.slice(i, i + skillsPerRow);
+          const skillText = rowSkills.join(" • ");
+          doc.text(skillText, margin, yPos);
+          yPos += 6;
+        }
+        break;
+    }
+  });
 }
 
-// Add other template generation functions here...
-function generateCreativeHTML(content: any) {
-  return `
-    <div class="max-w-[800px] mx-auto p-8 bg-white">
-      <div class="bg-purple-600 text-white p-8 -mx-8 -mt-8 mb-8">
-        <h1 class="text-4xl font-bold mb-4">${content.personalInfo.fullName}</h1>
-        <div class="flex flex-wrap gap-4 text-purple-100">
-          <span>${content.personalInfo.email}</span>
-          <span>${content.personalInfo.phone}</span>
-          <span>${content.personalInfo.location}</span>
-        </div>
-      </div>
+function generateExecutivePDF(doc: jsPDF, content: any) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 25;
+  let yPos = 30;
 
-      <div class="grid grid-cols-3 gap-8">
-        <div class="col-span-2">
-          <h2 class="text-2xl font-bold text-purple-600 mb-6">Experience</h2>
-          ${content.experience.map((exp: any) => `
-            <div class="mb-6">
-              <h3 class="font-bold text-lg">${exp.title}</h3>
-              <div class="text-purple-600 font-medium">${exp.company}</div>
-              <div class="text-gray-600 text-sm mb-2">${exp.duration}</div>
-              <p class="text-gray-700">${exp.description}</p>
-            </div>
-          `).join("")}
+  // Elegant header with double border
+  doc.setFont("times", "bold");
+  doc.setFontSize(28);
+  const nameWidth = doc.getTextDimensions(content.personalInfo.fullName).w;
+  doc.text(content.personalInfo.fullName, (pageWidth - nameWidth) / 2, yPos);
+  yPos += 15;
 
-          <h2 class="text-2xl font-bold text-purple-600 mt-8 mb-6">Education</h2>
-          ${content.education.map((edu: any) => `
-            <div class="mb-4">
-              <h3 class="font-bold text-lg">${edu.degree}</h3>
-              <div class="text-purple-600">${edu.school}</div>
-              <div class="text-gray-600 text-sm">${edu.year}</div>
-            </div>
-          `).join("")}
-        </div>
+  doc.setFont("times", "normal");
+  doc.setFontSize(11);
+  const contactInfo = `${content.personalInfo.email} • ${content.personalInfo.phone} • ${content.personalInfo.location}`;
+  const contactWidth = doc.getTextDimensions(contactInfo).w;
+  doc.text(contactInfo, (pageWidth - contactWidth) / 2, yPos);
+  yPos += 5;
 
-        <div>
-          <h2 class="text-2xl font-bold text-purple-600 mb-6">Skills</h2>
-          <div class="flex flex-col gap-2">
-            ${content.skills.map((skill: string) => `
-              <span class="bg-purple-100 text-purple-600 px-4 py-2 rounded-full text-center">
-                ${skill}
-              </span>
-            `).join("")}
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
+  // Double border under header
+  doc.setLineWidth(0.5);
+  doc.line(margin, yPos + 5, pageWidth - margin, yPos + 5);
+  doc.line(margin, yPos + 7, pageWidth - margin, yPos + 7);
+  yPos += 20;
+
+  // Sections with centered headings
+  const sections = ['Professional Experience', 'Education', 'Areas of Expertise'];
+  sections.forEach((section, index) => {
+    if (index > 0) yPos += 15;
+
+    doc.setFont("times", "bold");
+    doc.setFontSize(16);
+    const sectionWidth = doc.getTextDimensions(section).w;
+    doc.text(section, (pageWidth - sectionWidth) / 2, yPos);
+    yPos += 10;
+
+    switch (section) {
+      case 'Professional Experience':
+        content.experience.forEach((exp: any) => {
+          doc.setFont("times", "bold");
+          doc.setFontSize(12);
+          doc.text(exp.title, margin, yPos);
+          doc.setFont("times", "normal");
+          doc.text(exp.duration, pageWidth - margin - doc.getTextDimensions(exp.duration).w, yPos);
+          
+          doc.setFont("times", "italic");
+          doc.text(exp.company, margin, yPos + 5);
+          
+          yPos += 10;
+          doc.setFont("times", "normal");
+          const bullets = formatDescription(exp.description);
+          bullets.forEach(bullet => {
+            const splitBullet = doc.splitTextToSize(`• ${bullet}`, pageWidth - (2 * margin));
+            doc.text(splitBullet, margin, yPos);
+            yPos += splitBullet.length * 5;
+          });
+          
+          yPos += 5;
+        });
+        break;
+
+      case 'Education':
+        content.education.forEach((edu: any) => {
+          doc.setFont("times", "bold");
+          doc.setFontSize(12);
+          const degreeWidth = doc.getTextDimensions(edu.degree).w;
+          doc.text(edu.degree, (pageWidth - degreeWidth) / 2, yPos);
+          
+          doc.setFont("times", "italic");
+          const schoolWidth = doc.getTextDimensions(edu.school).w;
+          doc.text(edu.school, (pageWidth - schoolWidth) / 2, yPos + 5);
+          
+          doc.setFont("times", "normal");
+          const yearWidth = doc.getTextDimensions(edu.year).w;
+          doc.text(edu.year, (pageWidth - yearWidth) / 2, yPos + 10);
+          
+          yPos += 15;
+        });
+        break;
+
+      case 'Areas of Expertise':
+        const skillsPerRow = 3;
+        for (let i = 0; i < content.skills.length; i += skillsPerRow) {
+          const rowSkills = content.skills.slice(i, i + skillsPerRow);
+          const skillText = rowSkills.join(" • ");
+          const skillWidth = doc.getTextDimensions(skillText).w;
+          doc.setFont("times", "normal");
+          doc.text(skillText, (pageWidth - skillWidth) / 2, yPos);
+          yPos += 6;
+        }
+        break;
+    }
+  });
 }
 
-// Add implementations for other templates...
-function generateTechnicalHTML(content: any) {
-  return generateProfessionalHTML(content); // Fallback to professional for now
-}
+function generateMinimalPDF(doc: jsPDF, content: any) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 25;
+  let yPos = 30;
 
-function generateModernHTML(content: any) {
-  return generateProfessionalHTML(content); // Fallback to professional for now
-}
+  // Clean, minimal header
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(20);
+  doc.text(content.personalInfo.fullName, margin, yPos);
+  yPos += 10;
 
-function generateExecutiveHTML(content: any) {
-  return generateProfessionalHTML(content); // Fallback to professional for now
-}
+  doc.setFontSize(9);
+  doc.text(content.personalInfo.email, margin, yPos);
+  doc.text(content.personalInfo.phone, margin, yPos + 4);
+  doc.text(content.personalInfo.location, margin, yPos + 8);
+  yPos += 20;
 
-function generateMinimalHTML(content: any) {
-  return generateProfessionalHTML(content); // Fallback to professional for now
+  // Sections with minimal styling
+  const sections = ['Experience', 'Education', 'Skills'];
+  sections.forEach((section, index) => {
+    if (index > 0) yPos += 15;
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(128, 128, 128);
+    doc.text(section.toUpperCase(), margin, yPos);
+    yPos += 8;
+
+    doc.setTextColor(0, 0, 0);
+    switch (section) {
+      case 'Experience':
+        content.experience.forEach((exp: any) => {
+          doc.setFont("helvetica", "medium");
+          doc.setFontSize(11);
+          doc.text(exp.title, margin, yPos);
+          doc.text(exp.duration, pageWidth - margin - doc.getTextDimensions(exp.duration).w, yPos);
+          
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(10);
+          doc.text(exp.company, margin, yPos + 5);
+          
+          yPos += 10;
+          const bullets = formatDescription(exp.description);
+          bullets.forEach(bullet => {
+            const splitBullet = doc.splitTextToSize(`• ${bullet}`, pageWidth - (2 * margin));
+            doc.text(splitBullet, margin, yPos);
+            yPos += splitBullet.length * 5;
+          });
+          
+          yPos += 5;
+        });
+        break;
+
+      case 'Education':
+        content.education.forEach((edu: any) => {
+          doc.setFont("helvetica", "medium");
+          doc.setFontSize(11);
+          doc.text(edu.degree, margin, yPos);
+          doc.text(edu.year, pageWidth - margin - doc.getTextDimensions(edu.year).w, yPos);
+          
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(10);
+          doc.text(edu.school, margin, yPos + 5);
+          
+          yPos += 12;
+        });
+        break;
+
+      case 'Skills':
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(10);
+        const skillsText = content.skills.join(" • ");
+        const splitSkills = doc.splitTextToSize(skillsText, pageWidth - (2 * margin));
+        doc.text(splitSkills, margin, yPos);
+        yPos += splitSkills.length * 5;
+        break;
+    }
+  });
 }

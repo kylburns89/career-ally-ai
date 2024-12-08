@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -20,8 +20,8 @@ import {
 } from "@/components/ui/tabs";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2, Save, Download, Copy, Trash2 } from "lucide-react";
+import { CoverLetterPreview } from "./cover-letter-preview";
 
-// Rest of the file remains exactly the same
 interface SavedLetter {
   id: string;
   title: string;
@@ -30,7 +30,24 @@ interface SavedLetter {
   createdAt: Date;
 }
 
-const TEMPLATES = [
+interface FormData {
+  jobTitle: string;
+  companyName: string;
+  jobDescription: string;
+  resumeContent: string;
+  industry: string;
+}
+
+type TemplateType = "professional" | "creative" | "technical";
+
+interface Template {
+  id: TemplateType;
+  name: string;
+  description: string;
+  example: string;
+}
+
+const TEMPLATES: Template[] = [
   {
     id: "professional",
     name: "Professional",
@@ -76,9 +93,15 @@ I look forward to discussing how my technical expertise aligns with [Company]'s 
 Best regards,
 [Your Name]`,
   },
-] as const;
+];
 
-const INDUSTRY_PROMPTS = {
+type IndustryType = "technology" | "finance" | "healthcare";
+
+interface IndustryPrompts {
+  [key: string]: string[];
+}
+
+const INDUSTRY_PROMPTS: IndustryPrompts = {
   technology: [
     "Highlight specific technical projects or contributions",
     "Mention relevant programming languages and tools",
@@ -94,23 +117,24 @@ const INDUSTRY_PROMPTS = {
     "Mention relevant certifications",
     "Highlight experience with healthcare systems",
   ],
-} as const;
+};
 
 export function CoverLetterGenerator(): JSX.Element {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     jobTitle: "",
     companyName: "",
     jobDescription: "",
     resumeContent: "",
     industry: "",
   });
-  const [selectedTemplate, setSelectedTemplate] = useState("professional");
+  const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>("professional");
   const [generatedLetter, setGeneratedLetter] = useState("");
   const [savedLetters, setSavedLetters] = useState<SavedLetter[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeTab, setActiveTab] = useState("write");
   const [letterTitle, setLetterTitle] = useState("");
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
   const { toast } = useToast();
 
   const characterLimit = 4000;
@@ -228,15 +252,22 @@ export function CoverLetterGenerator(): JSX.Element {
     }
   };
 
-  const handleExport = async () => {
+  const handleExport = async (letter?: SavedLetter) => {
+    const contentToExport = letter ? letter : {
+      content: generatedLetter,
+      title: letterTitle,
+      template: selectedTemplate,
+    };
+
     try {
       const response = await fetch("/api/cover-letter/export", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          content: generatedLetter,
+          content: contentToExport.content,
           format: "pdf",
-          title: letterTitle,
+          title: contentToExport.title,
+          template: contentToExport.template,
         }),
       });
 
@@ -248,7 +279,7 @@ export function CoverLetterGenerator(): JSX.Element {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${letterTitle.replace(/\s+/g, '-').toLowerCase()}.pdf`;
+      a.download = `${contentToExport.title.replace(/\s+/g, '-').toLowerCase()}.pdf`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -277,17 +308,21 @@ export function CoverLetterGenerator(): JSX.Element {
 
         <TabsContent value="write" className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Left panel with form */}
             <Card className="p-6">
               <form className="space-y-6">
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium mb-2">Template Style</label>
-                    <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+                    <Select 
+                      value={selectedTemplate} 
+                      onValueChange={(value: string) => setSelectedTemplate(value as TemplateType)}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Select a template" />
                       </SelectTrigger>
                       <SelectContent>
-                        {TEMPLATES.map((template) => (
+                        {TEMPLATES.map((template: Template) => (
                           <SelectItem key={template.id} value={template.id}>
                             <div>
                               <div className="font-medium">{template.name}</div>
@@ -349,6 +384,9 @@ export function CoverLetterGenerator(): JSX.Element {
                       placeholder="Paste the job description here..."
                       className="min-h-[200px]"
                     />
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Include the full job description to help generate a more targeted cover letter.
+                    </p>
                   </div>
 
                   <div>
@@ -360,6 +398,9 @@ export function CoverLetterGenerator(): JSX.Element {
                       placeholder="Paste your resume content here..."
                       className="min-h-[200px]"
                     />
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Include your resume content to highlight relevant experience and skills.
+                    </p>
                   </div>
 
                   {formData.industry && (
@@ -392,6 +433,7 @@ export function CoverLetterGenerator(): JSX.Element {
               </form>
             </Card>
 
+            {/* Right panel with preview */}
             <Card className="p-6">
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
@@ -410,11 +452,32 @@ export function CoverLetterGenerator(): JSX.Element {
                       className="mb-4"
                     />
                     
-                    <Textarea
-                      value={generatedLetter}
-                      onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setGeneratedLetter(e.target.value)}
-                      className="min-h-[500px]"
-                    />
+                    {/* Template preview */}
+                    <div className="border rounded-lg overflow-hidden">
+                      <CoverLetterPreview 
+                        content={generatedLetter}
+                        template={selectedTemplate}
+                      />
+                    </div>
+
+                    {/* Edit mode toggle */}
+                    <div className="flex justify-end mb-4">
+                      <Button
+                        variant="outline"
+                        onClick={() => setIsEditing(!isEditing)}
+                      >
+                        {isEditing ? "Show Preview" : "Edit Content"}
+                      </Button>
+                    </div>
+
+                    {/* Show textarea in edit mode */}
+                    {isEditing && (
+                      <Textarea
+                        value={generatedLetter}
+                        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setGeneratedLetter(e.target.value)}
+                        className="min-h-[500px]"
+                      />
+                    )}
 
                     <div className="flex flex-wrap gap-2">
                       <Button onClick={() => handleSave()} disabled={!generatedLetter}>
@@ -423,7 +486,7 @@ export function CoverLetterGenerator(): JSX.Element {
                       </Button>
                       <Button
                         variant="outline"
-                        onClick={handleExport}
+                        onClick={() => handleExport()}
                         disabled={!generatedLetter}
                       >
                         <Download className="mr-2 h-4 w-4" />
@@ -466,13 +529,19 @@ export function CoverLetterGenerator(): JSX.Element {
                   <p className="text-sm text-muted-foreground mb-4">
                     Template: {TEMPLATES.find(t => t.id === letter.template)?.name}
                   </p>
+                  <div className="border rounded-lg overflow-hidden mb-4">
+                    <CoverLetterPreview 
+                      content={letter.content}
+                      template={letter.template as TemplateType}
+                    />
+                  </div>
                   <div className="flex gap-2">
                     <Button
                       variant="outline"
                       onClick={() => {
                         setGeneratedLetter(letter.content);
                         setLetterTitle(letter.title);
-                        setSelectedTemplate(letter.template);
+                        setSelectedTemplate(letter.template as TemplateType);
                         setActiveTab("write");
                       }}
                     >
@@ -480,7 +549,7 @@ export function CoverLetterGenerator(): JSX.Element {
                     </Button>
                     <Button
                       variant="outline"
-                      onClick={handleExport}
+                      onClick={() => handleExport(letter)}
                     >
                       Export as PDF
                     </Button>

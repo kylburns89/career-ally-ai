@@ -15,6 +15,17 @@ const nextConfig = {
       test: /\.svg$/,
       use: ['@svgr/webpack'],
     });
+
+    // Polyfill for node built-ins
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      fs: false,
+      buffer: require.resolve('buffer/'),
+      stream: require.resolve('stream-browserify'),
+      path: require.resolve('path-browserify'),
+      process: require.resolve('process/browser'),
+    };
+
     return config;
   },
 };
