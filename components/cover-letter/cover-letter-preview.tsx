@@ -42,26 +42,24 @@ export function CoverLetterPreview({ content, template }: CoverLetterPreviewProp
     case 'technical':
       return (
         <div className="bg-white min-h-[500px] w-full p-8 font-mono text-sm">
-          {/* Technical header */}
           <div className="bg-gray-100 p-3 mb-6">
             <div className="text-gray-600">
-              // {new Date().toLocaleDateString('en-US', {
+              {`// ${new Date().toLocaleDateString('en-US', {
                 year: 'numeric',
                 month: '2-digit',
                 day: '2-digit'
-              })}
+              })}`}
             </div>
           </div>
           
-          {/* Content with code-style comments */}
           <div className="space-y-6">
             {paragraphs.map((paragraph, index) => (
               <div key={index}>
                 {index === 0 && (
-                  <div className="text-gray-600 mb-2">/* Introduction */</div>
+                  <div className="text-gray-600 mb-2">{"/* Introduction */"}</div>
                 )}
                 {index === paragraphs.length - 1 && (
-                  <div className="text-gray-600 mb-2">/* Closing */</div>
+                  <div className="text-gray-600 mb-2">{"/* Closing */"}</div>
                 )}
                 <div className="leading-relaxed">{paragraph}</div>
               </div>

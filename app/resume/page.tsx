@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import ResumeBuilder from "@/components/resume/resume-builder";
+import { ResumeBuilder } from "@/components/resume/resume-builder";
 import ResumeAnalyzer from "@/components/resume/resume-analyzer";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import Image from 'next/image';
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -77,7 +78,7 @@ interface ResumeBuilderProps {
   onSave: () => Promise<void>;
 }
 
-export default function ResumeBuilder({
+export function ResumeBuilder({
   activeResume,
   setActiveResume,
   selectedTemplate: initialTemplate,
@@ -378,10 +379,12 @@ export default function ResumeBuilder({
                       onClick={() => handleTemplateSelect(template.id)}
                     >
                       <div className="aspect-video relative overflow-hidden rounded-md mb-2">
-                        <img
+                        <Image
                           src={template.preview}
                           alt={template.name}
-                          className="absolute inset-0 w-full h-full object-cover"
+                          fill
+                          className="object-cover"
+                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                         />
                       </div>
                       <h4 className="font-medium text-sm">{template.name}</h4>

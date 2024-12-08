@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -147,6 +147,29 @@ export function CoverLetterGenerator(): JSX.Element {
     }
   }, []);
 
+  const handleSave = useCallback((isAutoSave = false) => {
+    if (!generatedLetter || !letterTitle) return;
+
+    const newLetter: SavedLetter = {
+      id: Date.now().toString(),
+      title: letterTitle,
+      content: generatedLetter,
+      template: selectedTemplate,
+      createdAt: new Date(),
+    };
+
+    const updatedLetters = [...savedLetters, newLetter];
+    setSavedLetters(updatedLetters);
+    localStorage.setItem("savedCoverLetters", JSON.stringify(updatedLetters));
+
+    if (!isAutoSave) {
+      toast({
+        title: "Saved!",
+        description: "Your cover letter has been saved.",
+      });
+    }
+  }, [generatedLetter, letterTitle, savedLetters, selectedTemplate, toast]);
+
   useEffect(() => {
     if (autoSaveEnabled && generatedLetter) {
       const timeoutId = setTimeout(() => {
@@ -154,7 +177,7 @@ export function CoverLetterGenerator(): JSX.Element {
       }, 30000);
       return () => clearTimeout(timeoutId);
     }
-  }, [generatedLetter, autoSaveEnabled]);
+  }, [generatedLetter, autoSaveEnabled, handleSave]);
 
   const handleDelete = (letterId: string) => {
     const updatedLetters = savedLetters.filter(letter => letter.id !== letterId);
@@ -226,29 +249,6 @@ export function CoverLetterGenerator(): JSX.Element {
       });
     } finally {
       setIsGenerating(false);
-    }
-  };
-
-  const handleSave = (isAutoSave = false) => {
-    if (!generatedLetter || !letterTitle) return;
-
-    const newLetter: SavedLetter = {
-      id: Date.now().toString(),
-      title: letterTitle,
-      content: generatedLetter,
-      template: selectedTemplate,
-      createdAt: new Date(),
-    };
-
-    const updatedLetters = [...savedLetters, newLetter];
-    setSavedLetters(updatedLetters);
-    localStorage.setItem("savedCoverLetters", JSON.stringify(updatedLetters));
-
-    if (!isAutoSave) {
-      toast({
-        title: "Saved!",
-        description: "Your cover letter has been saved.",
-      });
     }
   };
 
