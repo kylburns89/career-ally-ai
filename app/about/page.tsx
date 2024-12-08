@@ -51,45 +51,72 @@ export default function About() {
   };
 
   return (
-    <div className="space-y-12 py-8">
-      <section className="text-center space-y-6">
-        <h1 className="text-4xl font-bold tracking-tight">About Kareerly</h1>
-        <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-          Kareerly is your intelligent career companion, combining advanced artificial intelligence with comprehensive career development tools to help you achieve your professional goals.
-        </p>
-        <div className="flex justify-center gap-4">
-          <Button size="lg" onClick={handleStartJourney}>
-            Start Your Journey
-          </Button>
-        </div>
-      </section>
+    <div className="container mx-auto px-4 py-8 max-w-7xl">
+      <div className="space-y-16">
+        {/* Hero Section */}
+        <section className="text-center space-y-6 py-12">
+          <div className="max-w-3xl mx-auto space-y-6">
+            <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">About Kareerly</h1>
+            <p className="text-xl text-muted-foreground">
+              Kareerly is your intelligent career companion, combining advanced artificial intelligence with comprehensive career development tools to help you achieve your professional goals.
+            </p>
+            <div className="flex justify-center gap-4 pt-4">
+              <Button size="lg" onClick={handleStartJourney}>
+                Start Your Journey
+              </Button>
+            </div>
+          </div>
+        </section>
 
-      <section className="space-y-8">
-        <h2 className="text-3xl font-semibold text-center">Why Choose Kareerly?</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {benefits.map((benefit) => (
-            <Card key={benefit.title} className="p-6">
-              <div className="space-y-4">
-                <benefit.icon className="w-12 h-12 text-primary" />
-                <h3 className="text-xl font-semibold">{benefit.title}</h3>
-                <p className="text-muted-foreground">{benefit.description}</p>
-              </div>
-            </Card>
-          ))}
-        </div>
-      </section>
+        {/* Benefits Section */}
+        <section className="space-y-10 max-w-6xl mx-auto">
+          <h2 className="text-3xl font-semibold text-center">Why Choose Kareerly?</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {benefits.map((benefit) => (
+              <Card 
+                key={benefit.title} 
+                className="relative overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-1"
+              >
+                <div className="p-6 space-y-4">
+                  <div className="flex items-center space-x-4">
+                    <benefit.icon className="w-10 h-10 text-primary" />
+                    <h3 className="text-xl font-semibold">{benefit.title}</h3>
+                  </div>
+                  <p className="text-muted-foreground">{benefit.description}</p>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </section>
 
-      <section className="space-y-6 max-w-3xl mx-auto text-center">
-        <h2 className="text-3xl font-semibold">Our Mission</h2>
-        <p className="text-lg text-muted-foreground">
-          We believe everyone deserves access to powerful career development tools. Our mission is to democratize career advancement by providing AI-powered tools that were once only available through expensive career coaching services.
-        </p>
-        <div className="flex justify-center gap-4">
-          <Button variant="outline" onClick={handleStartJourney}>
-            Explore Features
-          </Button>
-        </div>
-      </section>
+        {/* Mission Section */}
+        <section className="py-12 bg-accent/10 rounded-2xl">
+          <div className="max-w-3xl mx-auto text-center space-y-6 px-4">
+            <h2 className="text-3xl font-semibold">Our Mission</h2>
+            <p className="text-lg text-muted-foreground">
+              We believe everyone deserves access to powerful career development tools. Our mission is to democratize career advancement by providing AI-powered tools that were once only available through expensive career coaching services.
+            </p>
+            <div className="flex justify-center gap-4 pt-4">
+              <Button variant="outline" onClick={handleStartJourney}>
+                Explore Features
+              </Button>
+            </div>
+          </div>
+        </section>
+
+        {/* Call to Action */}
+        <section className="text-center max-w-2xl mx-auto space-y-6">
+          <h2 className="text-3xl font-semibold">Ready to Accelerate Your Career?</h2>
+          <p className="text-lg text-muted-foreground">
+            Join thousands of professionals who are already using Kareerly to advance their careers.
+          </p>
+          <div className="flex justify-center gap-4 pt-4">
+            <Button size="lg" onClick={handleStartJourney}>
+              Get Started Now
+            </Button>
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

@@ -22,14 +22,14 @@ export function CoverLetterPreview({ content, template }: CoverLetterPreviewProp
           
           <div className="px-8">
             {/* Modern date */}
-            <div className="font-sans text-sm mb-6">{date}</div>
+            <div className="font-sans text-sm text-gray-700 mb-6">{date}</div>
             
             {/* Content with left borders */}
             <div className="space-y-6">
               {paragraphs.map((paragraph, index) => (
                 <div
                   key={index}
-                  className="pl-4 border-l-2 border-blue-500 font-sans text-sm leading-relaxed"
+                  className="pl-4 border-l-2 border-blue-500 font-sans text-sm leading-relaxed text-gray-800"
                 >
                   {paragraph}
                 </div>
@@ -61,7 +61,7 @@ export function CoverLetterPreview({ content, template }: CoverLetterPreviewProp
                 {index === paragraphs.length - 1 && (
                   <div className="text-gray-600 mb-2">{"/* Closing */"}</div>
                 )}
-                <div className="leading-relaxed">{paragraph}</div>
+                <div className="leading-relaxed text-gray-800">{paragraph}</div>
               </div>
             ))}
           </div>
@@ -72,14 +72,14 @@ export function CoverLetterPreview({ content, template }: CoverLetterPreviewProp
       return (
         <div className="bg-white min-h-[500px] w-full p-8">
           {/* Traditional date */}
-          <div className="font-serif text-sm mb-6">{date}</div>
+          <div className="font-serif text-sm text-gray-700 mb-6">{date}</div>
           
           {/* Content with proper spacing */}
           <div className="space-y-6">
             {paragraphs.map((paragraph, index) => (
               <div
                 key={index}
-                className="font-serif text-sm leading-relaxed"
+                className="font-serif text-sm leading-relaxed text-gray-800"
               >
                 {paragraph}
               </div>

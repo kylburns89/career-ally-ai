@@ -1,8 +1,9 @@
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { handleErrorResponse } from "@/lib/supabase/client";
 import { validateData, resumeSchema } from "@/lib/validations";
+import { formToDbFormat } from "@/types/resume";
+import type { ResumeData } from "@/types/resume";
 
 // GET /api/resumes/[resumeId] - Get a specific resume
 export async function GET(
@@ -34,7 +35,13 @@ export async function GET(
 
     return NextResponse.json(resume);
   } catch (error) {
-    return handleErrorResponse(error);
+    return new Response(
+      JSON.stringify({
+        message: error instanceof Error ? error.message : "Failed to fetch resume",
+        error: error instanceof Error ? error.message : "Unknown error",
+      }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
   }
 }
 
@@ -54,7 +61,7 @@ export async function PATCH(
     const body = await req.json();
 
     // Validate request body
-    const validation = await validateData(resumeSchema, body);
+    const validation = await validateData(resumeSchema, body.content);
     if (!validation.success) {
       return new Response(
         JSON.stringify({ message: validation.error }),
@@ -62,7 +69,8 @@ export async function PATCH(
       );
     }
 
-    const { name, content } = validation.data;
+    // Convert form data to database format
+    const dbContent = formToDbFormat(validation.data);
 
     // Check if resume exists and belongs to user
     const { data: existingResume, error: checkError } = await supabase
@@ -82,8 +90,8 @@ export async function PATCH(
     const { data: resume, error } = await supabase
       .from("resumes")
       .update({
-        name,
-        content,
+        name: body.name,
+        content: dbContent,
         updated_at: new Date().toISOString(),
       })
       .eq("id", params.resumeId)
@@ -94,7 +102,13 @@ export async function PATCH(
 
     return NextResponse.json(resume);
   } catch (error) {
-    return handleErrorResponse(error);
+    return new Response(
+      JSON.stringify({
+        message: error instanceof Error ? error.message : "Failed to update resume",
+        error: error instanceof Error ? error.message : "Unknown error",
+      }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
   }
 }
 
@@ -114,7 +128,7 @@ export async function DELETE(
     // Check if resume exists and belongs to user
     const { data: existingResume, error: checkError } = await supabase
       .from("resumes")
-      .select("id")
+      .select("id, file_url")
       .eq("id", params.resumeId)
       .eq("user_id", session.user.id)
       .single();
@@ -126,6 +140,19 @@ export async function DELETE(
       );
     }
 
+    // Delete file from storage if it exists
+    if (existingResume.file_url) {
+      const fileName = existingResume.file_url.split('/').pop();
+      if (fileName) {
+        const { error: storageError } = await supabase.storage
+          .from('resumes')
+          .remove([fileName]);
+
+        if (storageError) throw storageError;
+      }
+    }
+
+    // Delete record from database
     const { error } = await supabase
       .from("resumes")
       .delete()
@@ -135,6 +162,12 @@ export async function DELETE(
 
     return new Response(null, { status: 204 });
   } catch (error) {
-    return handleErrorResponse(error);
+    return new Response(
+      JSON.stringify({
+        message: error instanceof Error ? error.message : "Failed to delete resume",
+        error: error instanceof Error ? error.message : "Unknown error",
+      }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
   }
 }

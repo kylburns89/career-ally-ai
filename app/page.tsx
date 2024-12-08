@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { BriefcaseIcon, FileTextIcon, MessagesSquareIcon, LineChartIcon, BrainCircuitIcon, ClipboardCheckIcon, CodeIcon, SparklesIcon, GitForkIcon } from "lucide-react";
+import { BriefcaseIcon, FileTextIcon, MessagesSquareIcon, LineChartIcon, BrainCircuitIcon, ClipboardCheckIcon, CodeIcon, SparklesIcon, GitForkIcon, SearchIcon } from "lucide-react";
 import Link from "next/link";
 
 const features = [
@@ -11,7 +11,7 @@ const features = [
     href: "/resume"
   },
   {
-    icon: BriefcaseIcon,
+    icon: SearchIcon,
     title: "Job Search",
     description: "Get personalized job recommendations based on your profile",
     href: "/jobs"
@@ -35,7 +35,7 @@ const features = [
     href: "/salary"
   },
   {
-    icon: BrainCircuitIcon,
+    icon: BriefcaseIcon,
     title: "Application Tracker",
     description: "Track and manage your job applications",
     href: "/tracker"
@@ -53,51 +53,58 @@ const features = [
     href: "/tools/career"
   },
   {
-    icon: SparklesIcon,
-    title: "Coming Soon",
-    description: "Networking Assistant, Skills Assessment, and more exciting features on the way!",
-    href: "#"
+    icon: LineChartIcon,
+    title: "Market Intelligence",
+    description: "Stay informed with industry trends and market insights",
+    href: "/market-intelligence"
   }
 ];
 
 export default function Home() {
   return (
-    <div className="space-y-8">
-      <section className="text-center space-y-4">
-        <h1 className="text-4xl font-bold tracking-tight">Your AI Career Assistant</h1>
-        <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-          Supercharge your job search with AI-powered tools for resume building, interview preparation, and more.
-        </p>
-        <div className="flex justify-center gap-4">
-          <Button asChild size="lg">
-            <Link href="/resume">Get Started</Link>
-          </Button>
-          <Button asChild size="lg" variant="outline">
-            <Link href="/about">Learn More</Link>
-          </Button>
-        </div>
-      </section>
+    <div className="container mx-auto px-4 py-8 max-w-7xl">
+      <div className="space-y-16">
+        {/* Hero Section */}
+        <section className="text-center space-y-6 py-12">
+          <div className="max-w-3xl mx-auto space-y-4">
+            <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
+              Your AI Career Assistant
+            </h1>
+            <p className="text-xl text-muted-foreground">
+              Supercharge your job search with AI-powered tools for resume building, interview preparation, and more.
+            </p>
+            <div className="flex justify-center gap-4 pt-4">
+              <Button asChild size="lg">
+                <Link href="/resume">Get Started</Link>
+              </Button>
+              <Button asChild size="lg" variant="outline">
+                <Link href="/about">Learn More</Link>
+              </Button>
+            </div>
+          </div>
+        </section>
 
-      <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {features.map((feature) => (
-          <Card key={feature.title} className={`p-6 hover:shadow-lg transition-shadow ${feature.title === "Coming Soon" ? "bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-950/10 dark:to-blue-950/10" : ""}`}>
-            <div className="space-y-4">
-              <feature.icon className={`w-12 h-12 ${feature.title === "Coming Soon" ? "text-purple-500" : "text-primary"}`} />
-              <h2 className="text-xl font-semibold">{feature.title}</h2>
-              <p className="text-muted-foreground">{feature.description}</p>
-              {feature.title !== "Coming Soon" ? (
-                <Button asChild variant="ghost" className="w-full">
+        {/* Features Grid */}
+        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
+          {features.map((feature) => (
+            <Card 
+              key={feature.title} 
+              className="relative overflow-hidden transition-all duration-300 hover:shadow-lg hover:-translate-y-1"
+            >
+              <div className="p-6 space-y-4">
+                <div className="flex items-center space-x-4">
+                  <feature.icon className="w-10 h-10 text-primary" />
+                  <h2 className="text-xl font-semibold">{feature.title}</h2>
+                </div>
+                <p className="text-muted-foreground">{feature.description}</p>
+                <Button asChild variant="ghost" className="w-full mt-4">
                   <Link href={feature.href}>Get Started →</Link>
                 </Button>
-              ) : (
-                <Button disabled variant="ghost" className="w-full">
-                  Stay Tuned →
-                </Button>
-              )}
-            </div>
-          </Card>
-        ))}
-      </section>
+              </div>
+            </Card>
+          ))}
+        </section>
+      </div>
     </div>
   );
 }

@@ -2,7 +2,8 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { validateData, resumeSchema } from "@/lib/validations";
-import type { SavedResume } from "@/lib/database";
+import { formToDbFormat } from "@/types/resume";
+import type { SavedResume } from "@/types/resume";
 
 export const dynamic = 'force-dynamic';
 
@@ -71,7 +72,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     console.log("Received resume data:", JSON.stringify(body, null, 2));
     
-    const validation = await validateData(resumeSchema, body);
+    const validation = await validateData(resumeSchema, body.content);
     if (!validation.success) {
       console.error("Validation error:", validation.error);
       return new Response(
@@ -83,11 +84,13 @@ export async function POST(req: Request) {
       );
     }
 
-    const resumeData = validation.data as SavedResume;
-    console.log("Validated resume data:", {
+    // Convert form data to database format
+    const dbContent = formToDbFormat(validation.data);
+
+    console.log("Preparing resume data:", {
       user_id: session.user.id,
-      name: resumeData.name,
-      content: JSON.stringify(resumeData.content, null, 2)
+      name: body.name,
+      content: JSON.stringify(dbContent, null, 2)
     });
 
     // Insert resume
@@ -95,8 +98,8 @@ export async function POST(req: Request) {
       .from("resumes")
       .upsert({
         user_id: session.user.id,
-        name: resumeData.name,
-        content: resumeData.content,
+        name: body.name,
+        content: dbContent,
       })
       .select()
       .single();

@@ -3,9 +3,21 @@
 import { useState, useEffect, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import Image from 'next/image';
+import Link from "next/link";
+import { Plus, Trash2, Download, Eye } from "lucide-react";
+import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
+import type { ReactNode } from "react";
+
+// UI Components
 import { Button } from "@/components/ui/button";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
@@ -23,51 +35,119 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, Download, Eye } from "lucide-react";
-import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
-import ResumePreview from "./resume-preview";
 import { useToast } from "@/components/ui/use-toast";
 import { LoadingSpinner } from "@/components/loading";
-import { resumeContentSchema } from "@/lib/validations";
-import type { ResumeData, SavedResume } from "@/types/database";
-import Link from "next/link";
 
+// Components
+import ResumePreview from "./resume-preview";
+
+// Types and Utils
+import { resumeContentSchema } from "@/lib/validations";
+import { ResumeData, SavedResume, Resume, dbToFormFormat, formToDbFormat } from "@/types/resume";
+
+// Template previews
 const TEMPLATES = [
   {
     id: "professional",
     name: "Professional",
     description: "Clean and traditional layout suitable for most industries",
-    preview: "/templates/professional.png",
+    preview: (
+      <div className="aspect-video bg-background p-4 text-xs border rounded">
+        <div className="border-b pb-2 mb-2 border-border">
+          <div className="font-bold text-foreground">John Doe</div>
+          <div className="text-muted-foreground">Professional Template</div>
+        </div>
+        <div className="space-y-1">
+          <div className="bg-muted h-2 w-3/4"></div>
+          <div className="bg-muted h-2 w-1/2"></div>
+        </div>
+      </div>
+    ),
   },
   {
     id: "creative",
     name: "Creative",
     description: "Contemporary design with creative elements",
-    preview: "/templates/creative.png",
+    preview: (
+      <div className="aspect-video bg-purple-600 dark:bg-purple-900 p-4 text-xs text-white rounded">
+        <div className="mb-2">
+          <div className="font-bold">John Doe</div>
+          <div className="text-purple-200">Creative Template</div>
+        </div>
+        <div className="space-y-1">
+          <div className="bg-purple-500/50 h-2 w-3/4"></div>
+          <div className="bg-purple-500/50 h-2 w-1/2"></div>
+        </div>
+      </div>
+    ),
   },
   {
     id: "technical",
     name: "Technical",
     description: "Focused on technical skills and projects",
-    preview: "/templates/technical.png",
+    preview: (
+      <div className="aspect-video bg-background p-4 text-xs font-mono border rounded">
+        <div className="border-l-2 border-blue-500 pl-2 mb-2">
+          <div className="font-bold text-foreground">{'<John Doe />'}</div>
+          <div className="text-blue-600 dark:text-blue-400">Technical Template</div>
+        </div>
+        <div className="space-y-1">
+          <div className="bg-muted h-2 w-3/4"></div>
+          <div className="bg-muted h-2 w-1/2"></div>
+        </div>
+      </div>
+    ),
   },
   {
     id: "modern",
     name: "Modern",
     description: "Clean and minimalist design with a modern touch",
-    preview: "/templates/modern.png",
+    preview: (
+      <div className="aspect-video bg-background p-4 text-xs border rounded">
+        <div className="border-b-2 border-emerald-500 pb-2 mb-2">
+          <div className="font-light text-lg text-foreground">John Doe</div>
+          <div className="text-emerald-600 dark:text-emerald-400">Modern Template</div>
+        </div>
+        <div className="space-y-1">
+          <div className="bg-emerald-100 dark:bg-emerald-900/50 h-2 w-3/4"></div>
+          <div className="bg-emerald-100 dark:bg-emerald-900/50 h-2 w-1/2"></div>
+        </div>
+      </div>
+    ),
   },
   {
     id: "executive",
     name: "Executive",
     description: "Professional layout for senior positions",
-    preview: "/templates/executive.png",
+    preview: (
+      <div className="aspect-video bg-background p-4 text-xs border rounded">
+        <div className="text-center border-double border-b-4 border-foreground pb-2 mb-2">
+          <div className="font-serif text-lg text-foreground">John Doe</div>
+          <div className="text-muted-foreground">Executive Template</div>
+        </div>
+        <div className="space-y-1">
+          <div className="bg-muted h-2 w-3/4 mx-auto"></div>
+          <div className="bg-muted h-2 w-1/2 mx-auto"></div>
+        </div>
+      </div>
+    ),
   },
   {
     id: "minimal",
     name: "Minimal",
     description: "Simple and elegant design focusing on content",
-    preview: "/templates/minimal.png",
+    preview: (
+      <div className="aspect-video bg-background p-4 text-xs border rounded">
+        <div className="mb-4">
+          <div className="text-lg font-light text-foreground">John Doe</div>
+          <div className="text-muted-foreground text-[10px] uppercase tracking-wide">Minimal Template</div>
+        </div>
+        <div className="space-y-1">
+          <div className="bg-muted h-2 w-3/4"></div>
+          <div className="bg-muted h-2 w-1/2"></div>
+        </div>
+      </div>
+    ),
   },
 ] as const;
 
@@ -83,7 +163,7 @@ export function ResumeBuilder({
   setActiveResume,
   selectedTemplate: initialTemplate,
   onSave,
-}: ResumeBuilderProps) {
+}: ResumeBuilderProps): ReactNode {
   const [sections, setSections] = useState<string[]>([
     "summary",
     "experience",
@@ -116,8 +196,8 @@ export function ResumeBuilder({
       experience: [{ title: "", company: "", duration: "", description: "" }],
       education: [{ degree: "", school: "", year: "" }],
       skills: [],
-      projects: [{ name: "", description: "", technologies: "", link: "" }],
-      certifications: [{ name: "", issuer: "", date: "", link: "" }],
+      projects: [],
+      certifications: [],
       template: selectedTemplate || "professional",
     },
   });
@@ -142,22 +222,14 @@ export function ResumeBuilder({
   useEffect(() => {
     if (activeResume) {
       try {
-        const parsedResume = JSON.parse(activeResume);
-        const resumeData = parsedResume as SavedResume;
+        const parsedResume = JSON.parse(activeResume) as Resume;
         setActiveResumeId(parsedResume.id);
-        form.reset({
-          personalInfo: resumeData.content.personalInfo,
-          experience: resumeData.content.experience,
-          education: resumeData.content.education,
-          skills: [],
-          projects: resumeData.content.projects || [],
-          certifications: resumeData.content.certifications || [],
-          template: resumeData.content.template || "professional",
-        });
-        setSkills(resumeData.content.skills || []);
-        setResumeName(resumeData.name || "");
-        setSections(resumeData.content.sections || sections);
-        setSelectedTemplate(resumeData.content.template);
+        const formData = dbToFormFormat(parsedResume.content);
+        form.reset(formData);
+        setSkills(formData.skills);
+        setResumeName(parsedResume.name);
+        setSections(formData.sections || sections);
+        setSelectedTemplate(formData.template || null);
         setShowForm(true);
       } catch (error) {
         console.error("Error parsing resume data:", error);
@@ -233,7 +305,7 @@ export function ResumeBuilder({
 
   const removeExperience = (index: number) => {
     const currentExperience = form.getValues("experience");
-    form.setValue("experience", currentExperience.filter((_, i: number) => i !== index));
+    form.setValue("experience", currentExperience.filter((_, i) => i !== index));
   };
 
   const addEducation = () => {
@@ -246,7 +318,7 @@ export function ResumeBuilder({
 
   const removeEducation = (index: number) => {
     const currentEducation = form.getValues("education");
-    form.setValue("education", currentEducation.filter((_, i: number) => i !== index));
+    form.setValue("education", currentEducation.filter((_, i) => i !== index));
   };
 
   const addSkill = () => {
@@ -257,7 +329,7 @@ export function ResumeBuilder({
   };
 
   const removeSkill = (index: number) => {
-    setSkills(skills.filter((_, i: number) => i !== index));
+    setSkills(skills.filter((_, i) => i !== index));
   };
 
   const onSubmit = async (formData: ResumeData) => {
@@ -286,9 +358,11 @@ export function ResumeBuilder({
       template: selectedTemplate,
     };
 
+    const dbData = formToDbFormat(completeFormData);
+
     const resumeData: SavedResume = {
       name: resumeName,
-      content: completeFormData,
+      content: dbData,
     };
 
     setSaving(true);
@@ -307,13 +381,7 @@ export function ResumeBuilder({
 
       const responseData = await response.json();
       setActiveResumeId(responseData.id);
-      setActiveResume(JSON.stringify({
-        id: responseData.id,
-        name: responseData.name,
-        content: responseData.content,
-        created_at: responseData.created_at,
-        updated_at: responseData.updated_at,
-      }));
+      setActiveResume(JSON.stringify(responseData));
 
       toast({
         title: "Success",
@@ -379,13 +447,7 @@ export function ResumeBuilder({
                       onClick={() => handleTemplateSelect(template.id)}
                     >
                       <div className="aspect-video relative overflow-hidden rounded-md mb-2">
-                        <Image
-                          src={template.preview}
-                          alt={template.name}
-                          fill
-                          className="object-cover"
-                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                        />
+                        {template.preview}
                       </div>
                       <h4 className="font-medium text-sm">{template.name}</h4>
                       <p className="text-xs text-muted-foreground">
@@ -722,7 +784,7 @@ export function ResumeBuilder({
                 </Badge>
               )}
             </div>
-            <div className="border rounded-lg overflow-auto max-h-[800px] bg-white">
+            <div className="border rounded-lg overflow-auto max-h-[800px] bg-white dark:bg-gray-900">
               {previewData && <ResumePreview data={previewData} />}
             </div>
           </Card>

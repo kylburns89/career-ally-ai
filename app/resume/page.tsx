@@ -1,236 +1,111 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useState } from "react";
+import type { ResumeContent, ResumeAnalysis } from "@/types/resume";
+import { useResumes } from "@/hooks/use-resumes";
+import { PageContainer } from "@/components/page-container";
+import { LoadingPage } from "@/components/loading";
 import { ResumeBuilder } from "@/components/resume/resume-builder";
 import ResumeAnalyzer from "@/components/resume/resume-analyzer";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/use-toast";
-import { Loader2 } from "lucide-react";
-import ProtectedRoute from "@/components/auth/protected-route";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import type { Resume, ResumeData, ResumeContent, ResumeAnalysis } from "@/types/database";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 export default function ResumePage() {
-  const [activeResume, setActiveResume] = useState<string | null>(null);
-  const [activeResumeContent, setActiveResumeContent] = useState<ResumeContent | null>(null);
-  const [activeResumeId, setActiveResumeId] = useState<string | null>(null);
-  const [activeAnalysis, setActiveAnalysis] = useState<ResumeAnalysis | null>(null);
-  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
-  const [resumes, setResumes] = useState<Resume[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { toast } = useToast();
-  const supabase = createClientComponentClient();
+  const { resumes, isLoading, refreshResumes } = useResumes();
+  const [selectedResume, setSelectedResume] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("builder");
 
-  const fetchResumes = useCallback(async () => {
-    try {
-      // Check auth session first
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError) {
-        console.error("Session error:", sessionError);
-        throw new Error("Failed to get session");
-      }
+  if (isLoading) {
+    return <LoadingPage />;
+  }
 
-      if (!session) {
-        throw new Error("No active session");
-      }
-
-      const response = await fetch("/api/resumes");
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to fetch resumes");
-      }
-      const data = await response.json();
-      console.log("Fetched resumes:", data);
-      setResumes(data);
-    } catch (error) {
-      console.error("Error fetching resumes:", error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to load your resumes",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [supabase, toast]);
-
-  useEffect(() => {
-    fetchResumes();
-  }, [fetchResumes]);
-
-  // Update active resume states whenever activeResume changes
-  useEffect(() => {
-    if (activeResume) {
-      try {
-        const parsedResume = JSON.parse(activeResume) as Resume;
-        setActiveResumeContent(parsedResume.content);
-        setActiveResumeId(parsedResume.id);
-        setActiveAnalysis(parsedResume.analysis);
-      } catch (error) {
-        console.error("Error parsing resume:", error);
-        setActiveResumeContent(null);
-        setActiveResumeId(null);
-        setActiveAnalysis(null);
-      }
-    } else {
-      setActiveResumeContent(null);
-      setActiveResumeId(null);
-      setActiveAnalysis(null);
-    }
-  }, [activeResume]);
-
-  const handleResumeSelect = (resume: Resume) => {
-    const content = resume.content as ResumeData;
-    setActiveResume(JSON.stringify(resume));
-    setSelectedTemplate(content.template);
-    // Switch to builder tab
-    const tabsList = document.querySelector('[role="tablist"]');
-    const builderTab = tabsList?.querySelector('[value="builder"]') as HTMLButtonElement;
-    if (builderTab) {
-      builderTab.click();
-    }
-  };
-
-  const handleNewResume = () => {
-    setActiveResume(null);
-    setActiveResumeContent(null);
-    setActiveResumeId(null);
-    setActiveAnalysis(null);
-    setSelectedTemplate(null);
-    // Switch to builder tab
-    const tabsList = document.querySelector('[role="tablist"]');
-    const builderTab = tabsList?.querySelector('[value="builder"]') as HTMLButtonElement;
-    if (builderTab) {
-      builderTab.click();
-    }
-  };
-
-  const handleAnalysisComplete = (analysis: ResumeAnalysis) => {
-    setActiveAnalysis(analysis);
-    // Update the active resume with the new analysis
-    if (activeResume) {
-      try {
-        const parsedResume = JSON.parse(activeResume) as Resume;
-        const updatedResume = {
-          ...parsedResume,
-          analysis
-        };
-        setActiveResume(JSON.stringify(updatedResume));
-      } catch (error) {
-        console.error("Error updating resume with new analysis:", error);
-      }
-    }
-  };
-
-  const handleDeleteResume = async (resumeId: string) => {
-    try {
-      const response = await fetch(`/api/resumes/${resumeId}`, {
-        method: "DELETE",
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || "Failed to delete resume");
-      }
-
-      toast({
-        title: "Success",
-        description: "Resume deleted successfully",
-      });
-
-      await fetchResumes();
-    } catch (error) {
-      console.error("Error deleting resume:", error);
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to delete resume",
-        variant: "destructive",
-      });
-    }
-  };
+  const currentResume = resumes?.find(r => r.id === selectedResume);
 
   return (
-    <ProtectedRoute>
-      <div className="container py-8 space-y-6">
-        <div className="flex justify-between items-center">
-          <div className="space-y-2">
-            <h1 className="text-3xl font-bold">Resume Builder & Analyzer</h1>
-            <p className="text-muted-foreground">
-              Create, edit, and analyze your resume with AI-powered insights
-            </p>
-          </div>
-          <Button onClick={handleNewResume}>Create New Resume</Button>
+    <PageContainer>
+      <div className="max-w-7xl mx-auto py-8">
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold">Resume Builder</h1>
+          <Button
+            variant="outline"
+            onClick={() => setSelectedResume(null)}
+            disabled={!selectedResume}
+          >
+            Create New Resume
+          </Button>
         </div>
 
-        {loading ? (
-          <Card className="p-6">
-            <div className="flex items-center justify-center">
-              <Loader2 className="h-6 w-6 animate-spin" />
-            </div>
-          </Card>
-        ) : resumes.length > 0 ? (
-          <Card className="p-6">
-            <h2 className="text-lg font-semibold mb-4">Your Resumes</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {resumes.map((resume) => (
-                <Card
-                  key={resume.id}
-                  className="p-4 hover:bg-accent cursor-pointer"
-                  onClick={() => handleResumeSelect(resume)}
-                >
-                  <div>
-                    <h3 className="font-medium">{resume.name}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      Last updated: {new Date(resume.updated_at).toLocaleDateString()}
+        <div className="grid grid-cols-1 lg:grid-cols-[300px,1fr] gap-8">
+          {/* Resume List */}
+          <div className="space-y-4">
+            <h2 className="text-lg font-semibold">Your Resumes</h2>
+            <ScrollArea className="h-[600px]">
+              <div className="space-y-2 pr-4">
+                {resumes?.map((resume) => (
+                  <Card
+                    key={resume.id}
+                    className={`p-4 cursor-pointer transition-all hover:border-primary ${
+                      selectedResume === resume.id
+                        ? "border-primary ring-2 ring-primary ring-opacity-50"
+                        : ""
+                    }`}
+                    onClick={() => setSelectedResume(resume.id)}
+                  >
+                    <div className="font-medium">{resume.name}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {new Date(resume.updated_at).toLocaleDateString()}
+                    </div>
+                  </Card>
+                ))}
+                {resumes?.length === 0 && (
+                  <div className="text-center text-muted-foreground py-8">
+                    No resumes yet. Create your first resume!
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
+          </div>
+
+          {/* Resume Builder/Analyzer */}
+          <div>
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="mb-8">
+                <TabsTrigger value="builder">Builder</TabsTrigger>
+                <TabsTrigger value="analyzer" disabled={!currentResume}>
+                  Analyzer
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="builder">
+                <ResumeBuilder
+                  activeResume={selectedResume ? JSON.stringify(currentResume) : null}
+                  setActiveResume={setSelectedResume}
+                  selectedTemplate={currentResume?.content.template || null}
+                  onSave={refreshResumes}
+                />
+              </TabsContent>
+
+              <TabsContent value="analyzer">
+                {currentResume ? (
+                  <ResumeAnalyzer
+                    resumeContent={currentResume.content}
+                    resumeId={currentResume.id}
+                    existingAnalysis={null}
+                  />
+                ) : (
+                  <Card className="p-6">
+                    <p className="text-center text-muted-foreground">
+                      Please select a resume to analyze
                     </p>
-                  </div>
-                  <div className="mt-4 flex justify-end">
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={(e: React.MouseEvent) => {
-                        e.stopPropagation();
-                        handleDeleteResume(resume.id);
-                      }}
-                    >
-                      Delete
-                    </Button>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          </Card>
-        ) : null}
-
-        <Tabs defaultValue="builder" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="builder">Builder</TabsTrigger>
-            <TabsTrigger value="analyzer">AI Analysis</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="builder">
-            <ResumeBuilder 
-              activeResume={activeResume} 
-              setActiveResume={setActiveResume} 
-              selectedTemplate={selectedTemplate}
-              onSave={fetchResumes}
-            />
-          </TabsContent>
-
-          <TabsContent value="analyzer">
-            <Card className="p-6">
-              <ResumeAnalyzer 
-                resumeContent={activeResumeContent}
-                resumeId={activeResumeId}
-                existingAnalysis={activeAnalysis}
-                onAnalysisComplete={handleAnalysisComplete}
-              />
-            </Card>
-          </TabsContent>
-        </Tabs>
+                  </Card>
+                )}
+              </TabsContent>
+            </Tabs>
+          </div>
+        </div>
       </div>
-    </ProtectedRoute>
+    </PageContainer>
   );
 }

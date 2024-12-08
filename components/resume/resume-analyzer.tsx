@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, CheckCircle, XCircle, AlertCircle, Download } from "lucide-react";
-import type { ResumeAnalysis } from "@/types/database";
+import type { ResumeAnalysis } from "@/types/resume";
 
 interface ResumeAnalyzerProps {
   resumeContent: any;

@@ -7,10 +7,35 @@ import { Card } from "@/components/ui/card";
 import ResumePreview from "@/components/resume/resume-preview";
 import { Download, ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import type { ResumeData } from "@/types/database";
+import type { ResumeContent } from "@/types/resume";
+
+// Interface matching the ResumePreview component's expectations
+interface PreviewResumeData {
+  personalInfo: {
+    fullName: string;
+    email: string;
+    phone: string;
+    location: string;
+    linkedin?: string;
+    website?: string;
+  };
+  experience: Array<{
+    title: string;
+    company: string;
+    duration: string;
+    description: string;
+  }>;
+  education: Array<{
+    degree: string;
+    school: string;
+    year: string;
+  }>;
+  skills: string[];
+  template: string | null;
+}
 
 export default function ResumePreviewPage() {
-  const [resumeData, setResumeData] = useState<ResumeData | null>(null);
+  const [resumeData, setResumeData] = useState<ResumeContent | null>(null);
   const [loading, setLoading] = useState(true);
   const searchParams = useSearchParams();
   const resumeId = searchParams.get("id");
@@ -46,7 +71,7 @@ export default function ResumePreviewPage() {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "resume.pdf";
+      a.download = `${resumeData?.personalInfo.name.replace(/\s+/g, '-').toLowerCase()}-resume.pdf`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -55,6 +80,31 @@ export default function ResumePreviewPage() {
       console.error("Error exporting resume as PDF:", error);
     }
   };
+
+  // Transform resumeData to match PreviewResumeData format
+  const transformedData = resumeData ? {
+    personalInfo: {
+      fullName: resumeData.personalInfo.name,
+      email: resumeData.personalInfo.email,
+      phone: resumeData.personalInfo.phone || "",
+      location: resumeData.personalInfo.location || "",
+      linkedin: resumeData.personalInfo.linkedin,
+      website: resumeData.personalInfo.website,
+    },
+    experience: resumeData.experience.map((exp: { title: string; company: string; startDate: string; endDate?: string; description: string[] }) => ({
+      title: exp.title,
+      company: exp.company,
+      duration: `${exp.startDate}${exp.endDate ? ` - ${exp.endDate}` : ' - Present'}`,
+      description: exp.description.join('\n'),
+    })),
+    education: resumeData.education.map((edu: { degree: string; school: string; graduationDate: string }) => ({
+      degree: edu.degree,
+      school: edu.school,
+      year: edu.graduationDate,
+    })),
+    skills: resumeData.skills,
+    template: resumeData.template || "professional", // Use template from data or fallback
+  } as PreviewResumeData : null;
 
   if (loading) {
     return (
@@ -66,7 +116,7 @@ export default function ResumePreviewPage() {
     );
   }
 
-  if (!resumeData) {
+  if (!resumeData || !transformedData) {
     return (
       <div className="container py-8">
         <Card className="p-6 text-center">
@@ -100,11 +150,11 @@ export default function ResumePreviewPage() {
       <Card className="p-8">
         <div className="text-center mb-4">
           <h2 className="text-lg font-semibold">
-            {resumeData.template?.charAt(0).toUpperCase() + resumeData.template?.slice(1)} Template
+            {resumeData.personalInfo.name}&apos;s Resume
           </h2>
         </div>
         <div className="border rounded-lg overflow-hidden bg-white">
-          <ResumePreview data={resumeData} />
+          <ResumePreview data={transformedData} />
         </div>
       </Card>
     </div>

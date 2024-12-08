@@ -6,128 +6,53 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-// Resume content types
-export interface PersonalInfo {
-  fullName: string;
-  email: string;
-  phone: string;
-  location: string;
-  linkedin?: string;
-  website?: string;
-}
-
-export interface Experience {
-  title: string;
-  company: string;
-  duration: string;
-  description: string;
-}
-
-export interface Education {
-  degree: string;
-  school: string;
-  year: string;
-}
-
-export interface Project {
-  name: string;
-  description: string;
-  technologies: string;
-  link?: string;
-}
-
-export interface Certification {
-  name: string;
-  issuer: string;
-  date: string;
-  link?: string;
-}
-
-export interface DetailedImprovement {
-  section: string;
-  original: string;
-  improved: string;
-  explanation: string;
-}
-
-export interface ResumeAnalysis {
-  score: number;
-  sections: {
-    [key: string]: {
-      score: number;
-      feedback: string[];
-      suggestions: string[];
-      impact: "high" | "medium" | "low";
-    };
-  };
-  atsCompatibility: {
-    score: number;
-    issues: string[];
-    suggestions: string[];
-    keywords: {
-      present: string[];
-      missing: string[];
-    };
-    formatting: {
-      issues: string[];
-      suggestions: string[];
-    };
-  };
-  industryComparison: {
-    score: number;
-    strengths: string[];
-    gaps: string[];
-    recommendations: string[];
-  };
-  actionItems: {
-    high: string[];
-    medium: string[];
-    low: string[];
-  };
-  improvements: DetailedImprovement[];
-}
-
-export interface ResumeContent {
-  personalInfo: PersonalInfo;
-  experience: Experience[];
-  education: Education[];
-  skills: string[];
-  projects?: Project[];
-  certifications?: Certification[];
-  sections?: string[];
-  template: string;
-}
-
-// Database types
-export interface Resume {
-  id: string;
-  user_id: string;
-  name: string;
-  content: ResumeContent;
-  analysis: ResumeAnalysis | null;
-  created_at: string;
-  updated_at: string;
-}
-
-// Type used in the resume builder form
 export interface ResumeData {
-  personalInfo: PersonalInfo;
-  experience: Experience[];
-  education: Education[];
+  name: string;
+  personalInfo: {
+    fullName: string;
+    email: string;
+    phone: string;
+    location: string;
+    linkedin?: string;
+    website?: string;
+  };
+  experience: Array<{
+    title: string;
+    company: string;
+    duration: string;
+    description: string;
+  }>;
+  education: Array<{
+    degree: string;
+    school: string;
+    year: string;
+  }>;
   skills: string[];
-  projects?: Project[];
-  certifications?: Certification[];
+  projects?: Array<{
+    name: string;
+    description: string;
+    technologies: string;
+    link?: string;
+  }>;
+  certifications?: Array<{
+    name: string;
+    issuer: string;
+    date: string;
+    link?: string;
+  }>;
+  template: string | null;
   sections?: string[];
-  template: string;
 }
 
 export interface SavedResume {
+  id?: string;
+  user_id?: string;
   name: string;
-  content: ResumeContent;
-  analysis?: ResumeAnalysis;
+  content: ResumeData;
+  created_at?: string;
+  updated_at?: string;
 }
 
-// Rest of the Database interface remains unchanged...
 export interface Database {
   public: {
     Tables: {
@@ -141,15 +66,16 @@ export interface Database {
           skills: string[]
           industries: string[]
           education: Json[]
-          work_history: Json[]
+          experience: Json[]
+          certifications: string[]
+          created_at: string
+          updated_at: string
           desired_salary: number | null
           desired_location: string | null
           remote_only: boolean
           linkedin: string | null
           github: string | null
           portfolio: string | null
-          created_at: string
-          updated_at: string
         }
         Insert: {
           id: string
@@ -160,15 +86,16 @@ export interface Database {
           skills?: string[]
           industries?: string[]
           education?: Json[]
-          work_history?: Json[]
+          experience?: Json[]
+          certifications?: string[]
+          created_at?: string
+          updated_at?: string
           desired_salary?: number | null
           desired_location?: string | null
           remote_only?: boolean
           linkedin?: string | null
           github?: string | null
           portfolio?: string | null
-          created_at?: string
-          updated_at?: string
         }
         Update: {
           id?: string
@@ -179,76 +106,16 @@ export interface Database {
           skills?: string[]
           industries?: string[]
           education?: Json[]
-          work_history?: Json[]
+          experience?: Json[]
+          certifications?: string[]
+          created_at?: string
+          updated_at?: string
           desired_salary?: number | null
           desired_location?: string | null
           remote_only?: boolean
           linkedin?: string | null
           github?: string | null
           portfolio?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-      }
-      resumes: {
-        Row: {
-          id: string
-          user_id: string
-          name: string
-          content: ResumeContent
-          analysis: ResumeAnalysis | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          name: string
-          content: ResumeContent
-          analysis?: ResumeAnalysis | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          name?: string
-          content?: ResumeContent
-          analysis?: ResumeAnalysis | null
-          created_at?: string
-          updated_at?: string
-        }
-      }
-      cover_letters: {
-        Row: {
-          id: string
-          user_id: string
-          name: string
-          content: string
-          job_title: string | null
-          company: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          user_id: string
-          name: string
-          content: string
-          job_title?: string | null
-          company?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          user_id?: string
-          name?: string
-          content?: string
-          job_title?: string | null
-          company?: string | null
-          created_at?: string
-          updated_at?: string
         }
       }
       applications: {
@@ -259,15 +126,24 @@ export interface Database {
           job_title: string
           status: string
           applied_date: string
+          notes: string | null
           resume_id: string | null
           cover_letter_id: string | null
-          notes: string | null
-          next_steps: string | null
-          salary: number | null
-          location: string | null
-          job_post_url: string | null
+          contact_id: string | null
           created_at: string
           updated_at: string
+          response_date: string | null
+          interview_date: string | null
+          offer_date: string | null
+          rejection_date: string | null
+          follow_up_dates: string[] | null
+          interview_feedback: string | null
+          salary_offered: number | null
+          application_method: string | null
+          application_source: string | null
+          interview_rounds: number
+          interview_types: string[] | null
+          skills_assessed: string[] | null
         }
         Insert: {
           id?: string
@@ -276,15 +152,24 @@ export interface Database {
           job_title: string
           status: string
           applied_date: string
+          notes?: string | null
           resume_id?: string | null
           cover_letter_id?: string | null
-          notes?: string | null
-          next_steps?: string | null
-          salary?: number | null
-          location?: string | null
-          job_post_url?: string | null
+          contact_id?: string | null
           created_at?: string
           updated_at?: string
+          response_date?: string | null
+          interview_date?: string | null
+          offer_date?: string | null
+          rejection_date?: string | null
+          follow_up_dates?: string[] | null
+          interview_feedback?: string | null
+          salary_offered?: number | null
+          application_method?: string | null
+          application_source?: string | null
+          interview_rounds?: number
+          interview_types?: string[] | null
+          skills_assessed?: string[] | null
         }
         Update: {
           id?: string
@@ -293,13 +178,171 @@ export interface Database {
           job_title?: string
           status?: string
           applied_date?: string
+          notes?: string | null
           resume_id?: string | null
           cover_letter_id?: string | null
+          contact_id?: string | null
+          created_at?: string
+          updated_at?: string
+          response_date?: string | null
+          interview_date?: string | null
+          offer_date?: string | null
+          rejection_date?: string | null
+          follow_up_dates?: string[] | null
+          interview_feedback?: string | null
+          salary_offered?: number | null
+          application_method?: string | null
+          application_source?: string | null
+          interview_rounds?: number
+          interview_types?: string[] | null
+          skills_assessed?: string[] | null
+        }
+      }
+      cover_letters: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          content: Json
+          job_title: string | null
+          company: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          name: string
+          content: Json
+          job_title?: string | null
+          company?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          name?: string
+          content?: Json
+          job_title?: string | null
+          company?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      resumes: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          content: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          name: string
+          content: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          name?: string
+          content?: Json
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      contacts: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          title: string | null
+          company: string | null
+          email: string | null
+          phone: string | null
+          linkedin_url: string | null
+          notes: string | null
+          relationship_score: number | null
+          last_contact_date: string | null
+          next_followup_date: string | null
+          communication_history: Json[]
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          name: string
+          title?: string | null
+          company?: string | null
+          email?: string | null
+          phone?: string | null
+          linkedin_url?: string | null
           notes?: string | null
-          next_steps?: string | null
-          salary?: number | null
-          location?: string | null
-          job_post_url?: string | null
+          relationship_score?: number | null
+          last_contact_date?: string | null
+          next_followup_date?: string | null
+          communication_history?: Json[]
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          name?: string
+          title?: string | null
+          company?: string | null
+          email?: string | null
+          phone?: string | null
+          linkedin_url?: string | null
+          notes?: string | null
+          relationship_score?: number | null
+          last_contact_date?: string | null
+          next_followup_date?: string | null
+          communication_history?: Json[]
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      learning_paths: {
+        Row: {
+          id: string
+          user_id: string
+          title: string
+          description: string | null
+          skills: string[]
+          resources: Json[]
+          progress: number
+          completed: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          title: string
+          description?: string | null
+          skills?: string[]
+          resources?: Json[]
+          progress?: number
+          completed?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          title?: string
+          description?: string | null
+          skills?: string[]
+          resources?: Json[]
+          progress?: number
+          completed?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -308,34 +351,41 @@ export interface Database {
         Row: {
           id: string
           user_id: string
-          type: string
           messages: Json[]
-          metadata: Json | null
           created_at: string
           updated_at: string
         }
         Insert: {
           id?: string
           user_id: string
-          type: string
           messages: Json[]
-          metadata?: Json | null
           created_at?: string
           updated_at?: string
         }
         Update: {
           id?: string
           user_id?: string
-          type?: string
           messages?: Json[]
-          metadata?: Json | null
           created_at?: string
           updated_at?: string
         }
       }
     }
     Views: {
-      [_ in never]: never
+      application_analytics: {
+        Row: {
+          user_id: string
+          total_applications: number
+          offers_received: number
+          rejections: number
+          in_interview_process: number
+          avg_response_time_days: number | null
+          avg_salary_offered: number | null
+          avg_interview_rounds: number | null
+          interview_rate: number
+          offer_conversion_rate: number
+        }
+      }
     }
     Functions: {
       [_ in never]: never

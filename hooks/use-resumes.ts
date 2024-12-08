@@ -1,13 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { useToast } from './use-toast';
-
-interface Resume {
-  id: string;
-  name: string;
-  file_url: string;
-  created_at: string;
-}
+import { useToast } from '@/components/ui/use-toast';
+import type { Resume, ResumeContent } from '@/types/resume';
 
 export function useResumes() {
   const [resumes, setResumes] = useState<Resume[]>([]);
@@ -103,14 +97,16 @@ export function useResumes() {
       const resume = resumes.find((r) => r.id === id);
       if (!resume) return;
 
-      // Delete file from storage
-      const fileName = resume.file_url.split('/').pop();
-      if (fileName) {
-        const { error: storageError } = await supabase.storage
-          .from('resumes')
-          .remove([fileName]);
+      // Delete file from storage if it exists
+      if (resume.file_url) {
+        const fileName = resume.file_url.split('/').pop();
+        if (fileName) {
+          const { error: storageError } = await supabase.storage
+            .from('resumes')
+            .remove([fileName]);
 
-        if (storageError) throw storageError;
+          if (storageError) throw storageError;
+        }
       }
 
       // Delete record from database
