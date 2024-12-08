@@ -49,21 +49,17 @@ export default function Chat({
                 <ReactMarkdown 
                   remarkPlugins={[remarkGfm]}
                   components={{
-                    // Override bullet list styling
                     ul: ({node, ...props}) => (
                       <ul className="list-disc list-outside ml-4 my-2" {...props} />
                     ),
-                    // Override paragraph styling
                     p: ({node, ...props}) => (
                       <p className="my-1" {...props} />
                     ),
-                    // Style links
                     a: ({node, ...props}) => (
                       <a className="text-blue-500 hover:underline" {...props} />
                     ),
-                    // Style code blocks
                     code: ({node, ...props}) => (
-                      <code className="bg-gray-100 dark:bg-gray-800 rounded px-1" {...props} />
+                      <code className="bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded px-1" {...props} />
                     )
                   }}
                 >

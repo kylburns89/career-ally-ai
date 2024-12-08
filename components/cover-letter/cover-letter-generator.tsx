@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -21,14 +21,7 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2, Save, Download, Copy, Trash2 } from "lucide-react";
 import { CoverLetterPreview } from "./cover-letter-preview";
-
-interface SavedLetter {
-  id: string;
-  title: string;
-  content: string;
-  template: string;
-  createdAt: Date;
-}
+import { useCoverLetters } from "@/hooks/use-cover-letters";
 
 interface FormData {
   jobTitle: string;
@@ -129,65 +122,43 @@ export function CoverLetterGenerator(): JSX.Element {
   });
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>("professional");
   const [generatedLetter, setGeneratedLetter] = useState("");
-  const [savedLetters, setSavedLetters] = useState<SavedLetter[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [activeTab, setActiveTab] = useState("write");
   const [letterTitle, setLetterTitle] = useState("");
-  const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const { toast } = useToast();
+  const { coverLetters, saveCoverLetter, deleteCoverLetter } = useCoverLetters();
 
   const characterLimit = 4000;
   const wordCount = generatedLetter.trim().split(/\s+/).length;
 
-  useEffect(() => {
-    const saved = localStorage.getItem("savedCoverLetters");
-    if (saved) {
-      setSavedLetters(JSON.parse(saved));
-    }
-  }, []);
-
-  const handleSave = useCallback((isAutoSave = false) => {
+  const handleSave = async () => {
     if (!generatedLetter || !letterTitle) return;
 
-    const newLetter: SavedLetter = {
-      id: Date.now().toString(),
-      title: letterTitle,
-      content: generatedLetter,
-      template: selectedTemplate,
-      createdAt: new Date(),
-    };
+    const result = await saveCoverLetter(
+      letterTitle,
+      generatedLetter,
+      formData.jobTitle,
+      formData.companyName
+    );
 
-    const updatedLetters = [...savedLetters, newLetter];
-    setSavedLetters(updatedLetters);
-    localStorage.setItem("savedCoverLetters", JSON.stringify(updatedLetters));
-
-    if (!isAutoSave) {
+    if (result) {
       toast({
         title: "Saved!",
         description: "Your cover letter has been saved.",
       });
     }
-  }, [generatedLetter, letterTitle, savedLetters, selectedTemplate, toast]);
+  };
 
-  useEffect(() => {
-    if (autoSaveEnabled && generatedLetter) {
-      const timeoutId = setTimeout(() => {
-        handleSave(true);
-      }, 30000);
-      return () => clearTimeout(timeoutId);
-    }
-  }, [generatedLetter, autoSaveEnabled, handleSave]);
-
-  const handleDelete = (letterId: string) => {
-    const updatedLetters = savedLetters.filter(letter => letter.id !== letterId);
-    setSavedLetters(updatedLetters);
-    localStorage.setItem("savedCoverLetters", JSON.stringify(updatedLetters));
+  const handleDelete = async (letterId: string) => {
+    const success = await deleteCoverLetter(letterId);
     
-    toast({
-      title: "Deleted",
-      description: "Cover letter has been deleted.",
-    });
+    if (success) {
+      toast({
+        title: "Deleted",
+        description: "Cover letter has been deleted.",
+      });
+    }
   };
 
   const handleInputChange = (
@@ -252,22 +223,16 @@ export function CoverLetterGenerator(): JSX.Element {
     }
   };
 
-  const handleExport = async (letter?: SavedLetter) => {
-    const contentToExport = letter ? letter : {
-      content: generatedLetter,
-      title: letterTitle,
-      template: selectedTemplate,
-    };
-
+  const handleExport = async (content: string, title: string) => {
     try {
       const response = await fetch("/api/cover-letter/export", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          content: contentToExport.content,
+          content,
           format: "pdf",
-          title: contentToExport.title,
-          template: contentToExport.template,
+          title,
+          template: selectedTemplate,
         }),
       });
 
@@ -279,7 +244,7 @@ export function CoverLetterGenerator(): JSX.Element {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${contentToExport.title.replace(/\s+/g, '-').toLowerCase()}.pdf`;
+      a.download = `${title.replace(/\s+/g, '-').toLowerCase()}.pdf`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -480,13 +445,13 @@ export function CoverLetterGenerator(): JSX.Element {
                     )}
 
                     <div className="flex flex-wrap gap-2">
-                      <Button onClick={() => handleSave()} disabled={!generatedLetter}>
+                      <Button onClick={handleSave} disabled={!generatedLetter}>
                         <Save className="mr-2 h-4 w-4" />
                         Save
                       </Button>
                       <Button
                         variant="outline"
-                        onClick={() => handleExport()}
+                        onClick={() => handleExport(generatedLetter, letterTitle)}
                         disabled={!generatedLetter}
                       >
                         <Download className="mr-2 h-4 w-4" />
@@ -518,21 +483,23 @@ export function CoverLetterGenerator(): JSX.Element {
           <Card className="p-6">
             <h3 className="text-xl font-semibold mb-4">Saved Cover Letters</h3>
             <div className="space-y-4">
-              {savedLetters.map((letter) => (
+              {coverLetters.map((letter) => (
                 <Card key={letter.id} className="p-4">
                   <div className="flex justify-between items-center mb-2">
-                    <h4 className="font-medium">{letter.title}</h4>
+                    <h4 className="font-medium">{letter.name}</h4>
                     <span className="text-sm text-muted-foreground">
-                      {new Date(letter.createdAt).toLocaleDateString()}
+                      {new Date(letter.created_at).toLocaleDateString()}
                     </span>
                   </div>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Template: {TEMPLATES.find(t => t.id === letter.template)?.name}
-                  </p>
+                  {letter.job_title && letter.company && (
+                    <p className="text-sm text-muted-foreground mb-4">
+                      {letter.job_title} at {letter.company}
+                    </p>
+                  )}
                   <div className="border rounded-lg overflow-hidden mb-4">
                     <CoverLetterPreview 
                       content={letter.content}
-                      template={letter.template as TemplateType}
+                      template="professional"
                     />
                   </div>
                   <div className="flex gap-2">
@@ -540,8 +507,7 @@ export function CoverLetterGenerator(): JSX.Element {
                       variant="outline"
                       onClick={() => {
                         setGeneratedLetter(letter.content);
-                        setLetterTitle(letter.title);
-                        setSelectedTemplate(letter.template as TemplateType);
+                        setLetterTitle(letter.name);
                         setActiveTab("write");
                       }}
                     >
@@ -549,7 +515,7 @@ export function CoverLetterGenerator(): JSX.Element {
                     </Button>
                     <Button
                       variant="outline"
-                      onClick={() => handleExport(letter)}
+                      onClick={() => handleExport(letter.content, letter.name)}
                     >
                       Export as PDF
                     </Button>
@@ -562,7 +528,7 @@ export function CoverLetterGenerator(): JSX.Element {
                   </div>
                 </Card>
               ))}
-              {savedLetters.length === 0 && (
+              {coverLetters.length === 0 && (
                 <p className="text-center text-muted-foreground">
                   No saved cover letters yet
                 </p>

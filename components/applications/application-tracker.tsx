@@ -39,6 +39,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Database } from "@/types/database"
+import { useResumes } from "@/hooks/use-resumes"
+import { useCoverLetters } from "@/hooks/use-cover-letters"
+import ResumePreview from "@/components/resume/resume-preview"
+import { CoverLetterPreview } from "@/components/cover-letter/cover-letter-preview"
 
 type ApplicationStatus = "applied" | "interviewing" | "offer" | "rejected"
 
@@ -54,26 +58,38 @@ const statusColors = {
 export function ApplicationTracker() {
   const [applications, setApplications] = useState<Application[]>([])
   const [isOpen, setIsOpen] = useState(false)
+  const [isEditMode, setIsEditMode] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [applicationToDelete, setApplicationToDelete] = useState<string | null>(null)
+  const [selectedResume, setSelectedResume] = useState<any>(null)
+  const [selectedCoverLetter, setSelectedCoverLetter] = useState<any>(null)
+  const [showResumePreview, setShowResumePreview] = useState(false)
+  const [showCoverLetterPreview, setShowCoverLetterPreview] = useState(false)
   const [newApplication, setNewApplication] = useState<{
+    id?: string
     company: string
     job_title: string
     status: ApplicationStatus
     notes: string
+    resume_id: string | null
+    cover_letter_id: string | null
   }>({
     company: "",
     job_title: "",
     status: "applied",
     notes: "",
+    resume_id: null,
+    cover_letter_id: null,
   })
 
   const supabase = createClientComponentClient<Database>()
+  const { resumes, isLoading: resumesLoading } = useResumes()
+  const { coverLetters, isLoading: coverLettersLoading } = useCoverLetters()
 
   const fetchApplications = useCallback(async () => {
     const { data: applications, error } = await supabase
       .from("applications")
-      .select("*")
+      .select("*, resumes(name), cover_letters(name)")
       .order("created_at", { ascending: false })
 
     if (error) {
@@ -104,25 +120,54 @@ export function ApplicationTracker() {
       status: newApplication.status,
       applied_date: new Date().toISOString(),
       notes: newApplication.notes || null,
+      resume_id: newApplication.resume_id === "none" ? null : newApplication.resume_id,
+      cover_letter_id: newApplication.cover_letter_id === "none" ? null : newApplication.cover_letter_id,
     }
 
-    const { error } = await supabase
-      .from("applications")
-      .insert([application])
+    let error;
+    if (isEditMode && newApplication.id) {
+      const { error: updateError } = await supabase
+        .from("applications")
+        .update(application)
+        .eq("id", newApplication.id)
+      error = updateError
+    } else {
+      const { error: insertError } = await supabase
+        .from("applications")
+        .insert([application])
+      error = insertError
+    }
 
     if (error) {
-      console.error("Error inserting application:", error)
+      console.error("Error saving application:", error)
       return
     }
 
     setIsOpen(false)
+    setIsEditMode(false)
     setNewApplication({
       company: "",
       job_title: "",
       status: "applied",
       notes: "",
+      resume_id: null,
+      cover_letter_id: null,
     })
     fetchApplications()
+  }
+
+  const handleEdit = (application: Application) => {
+    setNewApplication({
+      id: application.id,
+      company: application.company,
+      job_title: application.job_title,
+      status: application.status as ApplicationStatus,
+      notes: application.notes || "",
+      resume_id: application.resume_id,
+      cover_letter_id: application.cover_letter_id,
+    })
+    setIsEditMode(true)
+    setIsOpen(true)
   }
 
   const handleDelete = async (id: string) => {
@@ -148,15 +193,60 @@ export function ApplicationTracker() {
     fetchApplications()
   }
 
+  const handlePreviewResume = async (resumeId: string) => {
+    const { data: resume, error } = await supabase
+      .from("resumes")
+      .select("*")
+      .eq("id", resumeId)
+      .single()
+
+    if (error) {
+      console.error("Error fetching resume:", error)
+      return
+    }
+
+    setSelectedResume(resume)
+    setShowResumePreview(true)
+  }
+
+  const handlePreviewCoverLetter = async (coverLetterId: string) => {
+    const { data: coverLetter, error } = await supabase
+      .from("cover_letters")
+      .select("*")
+      .eq("id", coverLetterId)
+      .single()
+
+    if (error) {
+      console.error("Error fetching cover letter:", error)
+      return
+    }
+
+    setSelectedCoverLetter(coverLetter)
+    setShowCoverLetterPreview(true)
+  }
+
   return (
     <div className="space-y-4">
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <Dialog open={isOpen} onOpenChange={(open) => {
+        setIsOpen(open)
+        if (!open) {
+          setIsEditMode(false)
+          setNewApplication({
+            company: "",
+            job_title: "",
+            status: "applied",
+            notes: "",
+            resume_id: null,
+            cover_letter_id: null,
+          })
+        }
+      }}>
         <DialogTrigger asChild>
           <Button>Add Application</Button>
         </DialogTrigger>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add New Application</DialogTitle>
+            <DialogTitle>{isEditMode ? "Edit Application" : "Add New Application"}</DialogTitle>
             <DialogDescription>
               Enter the details of your job application
             </DialogDescription>
@@ -204,6 +294,48 @@ export function ApplicationTracker() {
               </Select>
             </div>
             <div className="space-y-2">
+              <label htmlFor="resume">Resume</label>
+              <Select
+                value={newApplication.resume_id || "none"}
+                onValueChange={(value) =>
+                  setNewApplication({ ...newApplication, resume_id: value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select resume" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {resumes.map((resume) => (
+                    <SelectItem key={resume.id} value={resume.id}>
+                      {resume.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="coverLetter">Cover Letter</label>
+              <Select
+                value={newApplication.cover_letter_id || "none"}
+                onValueChange={(value) =>
+                  setNewApplication({ ...newApplication, cover_letter_id: value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select cover letter" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {coverLetters.map((letter) => (
+                    <SelectItem key={letter.id} value={letter.id}>
+                      {letter.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
               <label htmlFor="notes">Notes</label>
               <Input
                 id="notes"
@@ -213,8 +345,37 @@ export function ApplicationTracker() {
                 }
               />
             </div>
-            <Button type="submit">Add Application</Button>
+            <Button type="submit">{isEditMode ? "Save Changes" : "Add Application"}</Button>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showResumePreview} onOpenChange={setShowResumePreview}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Resume Preview</DialogTitle>
+          </DialogHeader>
+          {selectedResume && (
+            <div className="max-h-[80vh] overflow-y-auto">
+              <ResumePreview data={selectedResume.content} />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showCoverLetterPreview} onOpenChange={setShowCoverLetterPreview}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Cover Letter Preview</DialogTitle>
+          </DialogHeader>
+          {selectedCoverLetter && (
+            <div className="max-h-[80vh] overflow-y-auto">
+              <CoverLetterPreview 
+                content={selectedCoverLetter.content} 
+                template="professional"
+              />
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -241,6 +402,8 @@ export function ApplicationTracker() {
               <TableHead>Position</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Date Applied</TableHead>
+              <TableHead>Resume</TableHead>
+              <TableHead>Cover Letter</TableHead>
               <TableHead>Notes</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
@@ -263,15 +426,56 @@ export function ApplicationTracker() {
                 <TableCell>
                   {new Date(application.applied_date).toLocaleDateString()}
                 </TableCell>
+                <TableCell>
+                  {application.resume_id && (
+                    <div className="flex items-center space-x-2">
+                      <span className="text-blue-500">
+                        {(application as any).resumes?.name || 'Attached'}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handlePreviewResume(application.resume_id!)}
+                      >
+                        Preview
+                      </Button>
+                    </div>
+                  )}
+                </TableCell>
+                <TableCell>
+                  {application.cover_letter_id && (
+                    <div className="flex items-center space-x-2">
+                      <span className="text-blue-500">
+                        {(application as any).cover_letters?.name || 'Attached'}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handlePreviewCoverLetter(application.cover_letter_id!)}
+                      >
+                        Preview
+                      </Button>
+                    </div>
+                  )}
+                </TableCell>
                 <TableCell>{application.notes}</TableCell>
                 <TableCell>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleDelete(application.id)}
-                  >
-                    Delete
-                  </Button>
+                  <div className="flex items-center space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEdit(application)}
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleDelete(application.id)}
+                    >
+                      Delete
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
