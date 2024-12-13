@@ -7,7 +7,8 @@ import { Card } from "@/components/ui/card";
 import ResumePreview from "@/components/resume/resume-preview";
 import { Download, ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import type { ResumeContent } from "@/types/resume";
+import type { ResumeContent, BaseExperience, BaseEducation, BaseProject, BaseCertification } from "@/types/resume";
+import { useToast } from "@/components/ui/use-toast";
 
 // Interface matching the ResumePreview component's expectations
 interface PreviewResumeData {
@@ -19,6 +20,7 @@ interface PreviewResumeData {
     linkedin?: string;
     website?: string;
   };
+  summary: string;
   experience: Array<{
     title: string;
     company: string;
@@ -31,79 +33,152 @@ interface PreviewResumeData {
     year: string;
   }>;
   skills: string[];
+  projects?: Array<{
+    name: string;
+    description: string;
+    technologies: string | string[];
+    url?: string;
+  }>;
+  certifications?: Array<{
+    name: string;
+    issuer: string;
+    date: string;
+    url?: string;
+  }>;
   template: string | null;
+  sections: string[];
 }
 
 export default function ResumePreviewPage() {
   const [resumeData, setResumeData] = useState<ResumeContent | null>(null);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
   const searchParams = useSearchParams();
   const resumeId = searchParams.get("id");
+  const { toast } = useToast();
 
   useEffect(() => {
     const fetchResume = async () => {
-      if (!resumeId) return;
+      if (!resumeId) {
+        setLoading(false);
+        return;
+      }
       
       try {
-        const response = await fetch(`/api/resumes/${resumeId}`);
-        if (!response.ok) throw new Error("Failed to fetch resume");
+        const response = await fetch(`/api/resumes/${resumeId}`, {
+          credentials: 'include',
+        });
+        
+        if (!response.ok) {
+          if (response.status === 401) {
+            throw new Error("Please log in to view this resume");
+          }
+          throw new Error("Failed to fetch resume");
+        }
         
         const data = await response.json();
         setResumeData(data.content);
       } catch (error) {
         console.error("Error fetching resume:", error);
+        toast({
+          title: "Error",
+          description: error instanceof Error ? error.message : "Failed to fetch resume",
+          variant: "destructive",
+        });
       } finally {
         setLoading(false);
       }
     };
 
     fetchResume();
-  }, [resumeId]);
+  }, [resumeId, toast]);
 
   const handleExport = async () => {
     if (!resumeId) return;
 
     try {
-      const response = await fetch(`/api/resumes/export/pdf/${resumeId}`);
-      if (!response.ok) throw new Error("Failed to export resume as PDF");
+      setExporting(true);
+      const response = await fetch(`/api/resumes/export/pdf/${resumeId}`, {
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error("Please log in to export this resume");
+        }
+        throw new Error("Failed to export resume as PDF");
+      }
 
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${resumeData?.personalInfo.name.replace(/\s+/g, '-').toLowerCase()}-resume.pdf`;
+      a.download = `${resumeData?.personalInfo?.fullName || 'resume'}-${new Date().toISOString().split('T')[0]}.pdf`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
+
+      toast({
+        title: "Success",
+        description: "Resume exported successfully",
+      });
     } catch (error) {
       console.error("Error exporting resume as PDF:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to export resume",
+        variant: "destructive",
+      });
+    } finally {
+      setExporting(false);
     }
   };
 
   // Transform resumeData to match PreviewResumeData format
   const transformedData = resumeData ? {
     personalInfo: {
-      fullName: resumeData.personalInfo.name,
-      email: resumeData.personalInfo.email,
+      fullName: resumeData.personalInfo.fullName || resumeData.personalInfo.name || "",
+      email: resumeData.personalInfo.email || "",
       phone: resumeData.personalInfo.phone || "",
       location: resumeData.personalInfo.location || "",
       linkedin: resumeData.personalInfo.linkedin,
       website: resumeData.personalInfo.website,
     },
-    experience: resumeData.experience.map((exp: { title: string; company: string; startDate: string; endDate?: string; description: string[] }) => ({
+    summary: resumeData.summary || "",
+    experience: resumeData.experience.map((exp: BaseExperience) => ({
       title: exp.title,
       company: exp.company,
-      duration: `${exp.startDate}${exp.endDate ? ` - ${exp.endDate}` : ' - Present'}`,
-      description: exp.description.join('\n'),
+      duration: exp.duration || `${exp.startDate || ''}${exp.endDate ? ` - ${exp.endDate}` : ' - Present'}`,
+      description: exp.description,
     })),
-    education: resumeData.education.map((edu: { degree: string; school: string; graduationDate: string }) => ({
+    education: resumeData.education.map((edu: BaseEducation) => ({
       degree: edu.degree,
       school: edu.school,
-      year: edu.graduationDate,
+      year: edu.graduationDate || edu.year || '',
     })),
     skills: resumeData.skills,
-    template: resumeData.template || "professional", // Use template from data or fallback
+    projects: resumeData.projects?.map((project: BaseProject) => ({
+      name: project.name,
+      description: project.description,
+      technologies: project.technologies,
+      url: project.url || project.link,
+    })),
+    certifications: resumeData.certifications?.map((cert: BaseCertification) => ({
+      name: cert.name,
+      issuer: cert.issuer,
+      date: cert.date,
+      url: cert.url,
+    })),
+    template: resumeData.template || "professional",
+    sections: resumeData.sections || [
+      "summary",
+      "experience",
+      "education",
+      "skills",
+      "projects",
+      "certifications",
+    ],
   } as PreviewResumeData : null;
 
   if (loading) {
@@ -141,16 +216,16 @@ export default function ResumePreviewPage() {
             Back to Resume Builder
           </Button>
         </Link>
-        <Button onClick={handleExport}>
+        <Button onClick={handleExport} disabled={exporting}>
           <Download className="mr-2 h-4 w-4" />
-          Export as PDF
+          {exporting ? "Exporting..." : "Export as PDF"}
         </Button>
       </div>
 
       <Card className="p-8">
         <div className="text-center mb-4">
           <h2 className="text-lg font-semibold">
-            {resumeData.personalInfo.name}&apos;s Resume
+            {transformedData.personalInfo.fullName}&apos;s Resume
           </h2>
         </div>
         <div className="border rounded-lg overflow-hidden bg-white">

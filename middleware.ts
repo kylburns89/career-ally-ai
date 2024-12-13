@@ -22,6 +22,13 @@ export async function middleware(req: NextRequest) {
   if (isApiRoute) {
     const isPublicApiPath = publicApiPaths.some(path => pathname.startsWith(path));
     if (!isPublicApiPath && !session) {
+      // For PDF export route, return a redirect to login
+      if (pathname.includes('/api/resumes/export/pdf/')) {
+        const redirectUrl = new URL('/auth/login', req.url);
+        redirectUrl.searchParams.set('redirectTo', pathname);
+        return NextResponse.redirect(redirectUrl);
+      }
+      // For other API routes, return 401 JSON response
       return NextResponse.json(
         { error: 'Unauthorized - Authentication required' },
         { status: 401 }

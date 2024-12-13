@@ -43,6 +43,7 @@
     "@radix-ui/react-tooltip": "^1.0.7",
     "@supabase/auth-helpers-nextjs": "^0.8.7",
     "@supabase/supabase-js": "^2.39.0",
+    "@types/react-beautiful-dnd": "^13.1.8",
     "@types/recharts": "^1.8.29",
     "ai": "^4.0.1",
     "buffer": "^6.0.3",
@@ -64,6 +65,7 @@
     "pdf2json": "^3.1.4",
     "process": "^0.11.10",
     "react": "^18",
+    "react-beautiful-dnd": "^13.1.1",
     "react-day-picker": "^8.9.1",
     "react-dom": "^18",
     "react-hook-form": "^7.48.2",
@@ -82,6 +84,7 @@
   },
   "devDependencies": {
     "@svgr/webpack": "^8.1.0",
+    "@types/jspdf": "^2.0.0",
     "@types/node": "^20",
     "@types/pdf-parse": "^1.1.4",
     "@types/react": "^18",

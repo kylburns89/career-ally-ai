@@ -56,6 +56,32 @@ export interface SavedResume {
 export interface Database {
   public: {
     Tables: {
+      resume_analyses: {
+        Row: {
+          id: string
+          resume_id: string
+          resume_content: Json
+          analysis: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          resume_id: string
+          resume_content: Json
+          analysis: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          resume_id?: string
+          resume_content?: Json
+          analysis?: Json
+          created_at?: string
+          updated_at?: string
+        }
+      }
       profiles: {
         Row: {
           id: string

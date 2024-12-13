@@ -1,111 +1,145 @@
-// Base types for personal information
-interface BasePersonalInfo {
+// Template types
+export const TEMPLATES = [
+  "professional",
+  "creative",
+  "technical",
+  "modern",
+  "executive",
+  "minimal",
+] as const;
+
+export type Template = typeof TEMPLATES[number];
+export type FormTemplate = Template | null | string;
+
+// Form-specific interfaces
+export interface ExperienceFormData {
+  title: string;
+  company: string;
+  duration: string;
+  description: string;
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface EducationFormData {
+  degree: string;
+  school: string;
+  year: string;
+  graduationDate?: string;
+}
+
+export interface ProjectFormData {
+  name: string;
+  description: string;
+  technologies: string | string[];
+  url?: string;
+  link?: string; // For backward compatibility
+}
+
+export interface CertificationFormData {
+  name: string;
+  issuer: string;
+  date: string;
+  url?: string;
+}
+
+// Base interfaces
+export interface BasePersonalInfo {
+  fullName: string;
   email: string;
   phone: string;
   location: string;
   linkedin?: string;
   website?: string;
+  name?: string; // For backward compatibility
 }
 
-// Form version of personal info (uses fullName)
-interface FormPersonalInfo extends BasePersonalInfo {
-  fullName: string;
-}
-
-// Database version of personal info (uses name)
-interface DbPersonalInfo extends BasePersonalInfo {
-  name: string;
-}
-
-// Base experience type for the form
-interface FormExperience {
+export interface BaseExperience {
   title: string;
   company: string;
   duration: string;
   description: string;
-}
-
-// Database experience type
-interface DbExperience {
-  title: string;
-  company: string;
-  startDate: string;
+  startDate?: string;
   endDate?: string;
-  description: string[];
 }
 
-// Base education type for the form
-interface FormEducation {
+export interface BaseEducation {
   degree: string;
   school: string;
   year: string;
+  graduationDate?: string;
 }
 
-// Database education type
-interface DbEducation {
-  degree: string;
-  school: string;
-  graduationDate: string;
-}
-
-// Project type
-interface Project {
+export interface BaseProject {
   name: string;
   description: string;
-  technologies: string;
-  link?: string;
+  technologies: string[];
+  url?: string;
+  link?: string; // For backward compatibility
 }
 
-// Certification type
-interface Certification {
+export interface BaseCertification {
   name: string;
   issuer: string;
   date: string;
-  link?: string;
+  url?: string;
 }
 
-// Form data structure
+// Form data interface
+export interface ResumeFormData {
+  personalInfo: BasePersonalInfo;
+  summary: string;
+  experience: ExperienceFormData[];
+  education: EducationFormData[];
+  skills: string[];
+  projects?: ProjectFormData[];
+  certifications?: CertificationFormData[];
+  template: FormTemplate;
+  sections?: string[];
+}
+
+// Preview data interface that matches the form data structure
+export interface PreviewData extends Omit<ResumeFormData, 'template'> {
+  template: FormTemplate;
+}
+
+// Main API/Database interfaces
 export interface ResumeData {
-  personalInfo: FormPersonalInfo;
-  experience: FormExperience[];
-  education: FormEducation[];
+  personalInfo: BasePersonalInfo;
+  summary: string;
+  experience: BaseExperience[];
+  education: BaseEducation[];
   skills: string[];
-  projects?: Project[];
-  certifications?: Certification[];
-  template: string | null;
+  projects?: BaseProject[];
+  certifications?: BaseCertification[];
+  template: Template;
   sections?: string[];
 }
 
-// Database content structure
-export interface ResumeContent {
-  personalInfo: DbPersonalInfo;
-  experience: DbExperience[];
-  education: DbEducation[];
-  skills: string[];
-  projects?: Project[];
-  certifications?: Certification[];
-  template: string | null;
-  sections?: string[];
+export interface ResumeContent extends ResumeData {
+  template: Template; // Required for database storage
 }
 
-// Database resume record
-export interface Resume {
-  id: string;
-  user_id: string;
-  name: string;
-  content: ResumeContent;
-  created_at: string;
-  updated_at: string;
-  analysis?: ResumeAnalysis | null;
-  file_url?: string | null;
-}
-
-// Data structure for saving a new resume
 export interface SavedResume {
+  id?: string;
   name: string;
   content: ResumeContent;
+  userId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  file_url?: string;
 }
 
+export interface Resume extends SavedResume {
+  id: string;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+  updated_at?: string; // For backward compatibility
+  file_url?: string;
+}
+
+// Resume Analysis Interface
 export interface ResumeAnalysis {
   score: number;
   atsCompatibility: {
@@ -146,63 +180,187 @@ export interface ResumeAnalysis {
   };
 }
 
-// Helper function to convert form data to database format
-export function formToDbFormat(formData: ResumeData): ResumeContent {
+// Type guard functions
+export function isValidDate(date: string | undefined): date is string {
+  if (!date) return false;
+  const d = new Date(date);
+  return d instanceof Date && !isNaN(d.getTime());
+}
+
+export function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every(item => typeof item === 'string');
+}
+
+// Helper functions
+export function normalizeTechnologies(technologies: string | string[]): string[] {
+  if (Array.isArray(technologies)) {
+    return technologies.filter(Boolean);
+  }
+  return technologies.split(',').map(t => t.trim()).filter(Boolean);
+}
+
+export function normalizeTemplate(template: FormTemplate): Template {
+  if (!template) return "professional";
+  const normalizedTemplate = template.toLowerCase();
+  return isValidTemplate(normalizedTemplate) ? normalizedTemplate : "professional";
+}
+
+export function toPreviewData(formData: ResumeFormData): PreviewData {
   return {
-    personalInfo: {
-      name: formData.personalInfo.fullName,
-      email: formData.personalInfo.email,
-      phone: formData.personalInfo.phone,
-      location: formData.personalInfo.location,
-      linkedin: formData.personalInfo.linkedin,
-      website: formData.personalInfo.website,
-    },
-    experience: formData.experience.map(exp => ({
-      title: exp.title,
-      company: exp.company,
-      startDate: exp.duration.split('-')[0].trim(),
-      endDate: exp.duration.includes('-') ? exp.duration.split('-')[1].trim() : undefined,
-      description: exp.description.split('\n').map(line => line.trim()).filter(Boolean),
+    ...formData,
+    template: formData.template || "professional",
+    projects: formData.projects?.map(project => ({
+      ...project,
+      technologies: normalizeTechnologies(project.technologies),
     })),
-    education: formData.education.map(edu => ({
-      degree: edu.degree,
-      school: edu.school,
-      graduationDate: edu.year,
-    })),
-    skills: formData.skills,
-    projects: formData.projects,
-    certifications: formData.certifications,
-    template: formData.template,
-    sections: formData.sections,
+    certifications: formData.certifications || [],
   };
 }
 
-// Helper function to convert database format to form data
-export function dbToFormFormat(dbData: ResumeContent): ResumeData {
+export function dbToFormFormat(content: ResumeContent): ResumeFormData {
   return {
-    personalInfo: {
-      fullName: dbData.personalInfo.name,
-      email: dbData.personalInfo.email,
-      phone: dbData.personalInfo.phone,
-      location: dbData.personalInfo.location,
-      linkedin: dbData.personalInfo.linkedin,
-      website: dbData.personalInfo.website,
-    },
-    experience: dbData.experience.map(exp => ({
-      title: exp.title,
-      company: exp.company,
-      duration: `${exp.startDate}${exp.endDate ? ` - ${exp.endDate}` : ' - Present'}`,
-      description: exp.description.join('\n'),
+    ...content,
+    summary: content.summary || "",
+    experience: content.experience.map(exp => ({
+      ...exp,
+      description: exp.description,
+      duration: exp.duration || formatDateRange(exp.startDate, exp.endDate),
     })),
-    education: dbData.education.map(edu => ({
-      degree: edu.degree,
-      school: edu.school,
-      year: edu.graduationDate,
+    education: content.education.map(edu => ({
+      ...edu,
+      year: edu.year || edu.graduationDate || '',
     })),
-    skills: dbData.skills,
-    projects: dbData.projects,
-    certifications: dbData.certifications,
-    template: dbData.template,
-    sections: dbData.sections,
+    skills: content.skills || [],
+    projects: content.projects?.map(project => ({
+      ...project,
+      technologies: project.technologies,
+      url: project.url || project.link,
+    })) || [],
+    certifications: content.certifications || [],
+    template: content.template,
+    sections: content.sections || [
+      "summary",
+      "experience",
+      "education",
+      "skills",
+      "projects",
+      "certifications",
+    ],
   };
 }
+
+export function formToDbFormat(formData: ResumeFormData): ResumeContent {
+  const template = normalizeTemplate(formData.template);
+  
+  const experience = formData.experience.map(exp => ({
+    ...exp,
+    duration: exp.duration || formatDateRange(exp.startDate, exp.endDate),
+  }));
+
+  const projects = formData.projects?.map(project => ({
+    ...project,
+    technologies: normalizeTechnologies(project.technologies),
+    url: project.url || project.link,
+  })) || [];
+
+  const certifications = formData.certifications || [];
+
+  return {
+    personalInfo: formData.personalInfo,
+    summary: formData.summary || "",
+    experience,
+    education: formData.education,
+    skills: formData.skills,
+    projects,
+    certifications,
+    template,
+    sections: formData.sections || [
+      "summary",
+      "experience",
+      "education",
+      "skills",
+      "projects",
+      "certifications",
+    ],
+  };
+}
+
+export function formatDateRange(startDate?: string, endDate?: string): string {
+  if (!startDate) return "";
+  return endDate ? `${startDate} - ${endDate}` : `${startDate} - Present`;
+}
+
+export function parseDuration(duration: string): { startDate?: string; endDate?: string } {
+  if (!duration) return {};
+  const [start, end] = duration.split(" - ");
+  return {
+    startDate: start || undefined,
+    endDate: end === "Present" ? undefined : end,
+  };
+}
+
+export function formatDate(date: string | undefined): string {
+  if (!date || !isValidDate(date)) return "";
+  return new Date(date).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+  });
+}
+
+// Default form values
+export const defaultFormValues: ResumeFormData = {
+  personalInfo: {
+    fullName: "",
+    email: "",
+    phone: "",
+    location: "",
+    linkedin: "",
+    website: "",
+  },
+  summary: "",
+  experience: [{ title: "", company: "", duration: "", description: "" }],
+  education: [{ degree: "", school: "", year: "" }],
+  skills: [],
+  projects: [],
+  certifications: [],
+  template: "professional",
+  sections: [
+    "summary",
+    "experience",
+    "education",
+    "skills",
+    "projects",
+    "certifications",
+  ],
+};
+
+// Template validation and conversion
+export function getTemplateId(template: FormTemplate): Template {
+  if (!template) return "professional";
+  const templateId = template.toLowerCase();
+  if (isValidTemplate(templateId)) {
+    return templateId;
+  }
+  return "professional";
+}
+
+export function isValidTemplate(template: string | null): template is Template {
+  if (!template) return false;
+  return TEMPLATES.includes(template.toLowerCase() as Template);
+}
+
+// Template preview interface
+export interface TemplatePreview {
+  id: Template;
+  name: string;
+  description: string;
+  preview: React.ReactNode;
+}
+
+// Template preview data
+export const templatePreviews: TemplatePreview[] = TEMPLATES.map(id => ({
+  id,
+  name: id.charAt(0).toUpperCase() + id.slice(1),
+  description: `${id.charAt(0).toUpperCase() + id.slice(1)} template`,
+  preview: null, // Preview component will be provided by the UI
+}));

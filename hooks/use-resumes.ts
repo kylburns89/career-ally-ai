@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useToast } from '@/components/ui/use-toast';
-import type { Resume, ResumeContent } from '@/types/resume';
+import type { Resume, ResumeContent, Template } from '@/types/resume';
+import { normalizeTemplate } from '@/types/resume';
+import type { Database } from '@/types/database';
 
 export function useResumes() {
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
-  const supabase = createClientComponentClient();
+  const supabase = createClientComponentClient<Database>();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -16,18 +18,59 @@ export function useResumes() {
 
   const fetchResumes = async () => {
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new Error('No active session');
+      }
+
       const { data, error } = await supabase
         .from('resumes')
         .select('*')
+        .eq('user_id', session.user.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setResumes(data || []);
+
+      // Transform the data to match the Resume type
+      const transformedResumes: Resume[] = (data || []).map(resume => {
+        const dbContent = resume.content as any;
+        const content: ResumeContent = {
+          personalInfo: dbContent.personalInfo || { fullName: '', email: '', phone: '', location: '' },
+          summary: dbContent.summary || '',
+          experience: dbContent.experience || [],
+          education: dbContent.education || [],
+          skills: dbContent.skills || [],
+          projects: dbContent.projects || [],
+          certifications: dbContent.certifications || [],
+          template: normalizeTemplate(dbContent.template),
+          sections: dbContent.sections || [
+            "summary",
+            "experience",
+            "education",
+            "skills",
+            "projects",
+            "certifications",
+          ],
+        };
+
+        return {
+          id: resume.id,
+          userId: resume.user_id,
+          name: resume.name,
+          content,
+          createdAt: resume.created_at,
+          updatedAt: resume.updated_at,
+          file_url: dbContent.file_url,
+        };
+      });
+
+      setResumes(transformedResumes);
     } catch (error) {
       console.error('Error fetching resumes:', error);
       toast({
         title: 'Error',
-        description: 'Failed to fetch resumes',
+        description: error instanceof Error ? error.message : 'Failed to fetch resumes',
         variant: 'destructive',
       });
     } finally {
@@ -39,6 +82,12 @@ export function useResumes() {
     try {
       setIsUploading(true);
 
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new Error('No active session');
+      }
+
       // Upload file to Supabase Storage
       const formData = new FormData();
       formData.append('file', file);
@@ -46,39 +95,85 @@ export function useResumes() {
       const response = await fetch('/api/resumes/upload', {
         method: 'POST',
         body: formData,
+        credentials: 'include',
       });
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message);
+        throw new Error(error.message || 'Failed to upload file');
       }
 
       const { url } = await response.json();
 
+      const defaultTemplate: Template = 'professional';
+      const dbContent = {
+        personalInfo: {
+          fullName: '',
+          email: '',
+          phone: '',
+          location: '',
+        },
+        summary: '',
+        experience: [],
+        education: [],
+        skills: [],
+        projects: [],
+        certifications: [],
+        template: defaultTemplate,
+        sections: [
+          "summary",
+          "experience",
+          "education",
+          "skills",
+          "projects",
+          "certifications",
+        ],
+        file_url: url,
+      };
+
       // Create resume record in database
       const { data: resume, error: dbError } = await supabase
         .from('resumes')
-        .insert([
-          {
-            name,
-            file_url: url,
-            content: {}, // Initialize with empty content
-          },
-        ])
+        .insert({
+          user_id: session.user.id,
+          name,
+          content: dbContent,
+        })
         .select()
         .single();
 
       if (dbError) throw dbError;
 
+      // Transform the new resume to match the Resume type
+      const transformedResume: Resume = {
+        id: resume.id,
+        userId: resume.user_id,
+        name: resume.name,
+        content: {
+          personalInfo: dbContent.personalInfo,
+          summary: dbContent.summary,
+          experience: dbContent.experience,
+          education: dbContent.education,
+          skills: dbContent.skills,
+          projects: dbContent.projects,
+          certifications: dbContent.certifications,
+          template: defaultTemplate,
+          sections: dbContent.sections,
+        },
+        createdAt: resume.created_at,
+        updatedAt: resume.updated_at,
+        file_url: url,
+      };
+
       // Update local state
-      setResumes((prev) => [resume, ...prev]);
+      setResumes(prev => [transformedResume, ...prev]);
 
       toast({
         title: 'Success',
         description: 'Resume uploaded successfully',
       });
 
-      return resume;
+      return transformedResume;
     } catch (error) {
       console.error('Error uploading resume:', error);
       toast({
@@ -94,6 +189,12 @@ export function useResumes() {
 
   const deleteResume = async (id: string) => {
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new Error('No active session');
+      }
+
       const resume = resumes.find((r) => r.id === id);
       if (!resume) return;
 
@@ -103,7 +204,7 @@ export function useResumes() {
         if (fileName) {
           const { error: storageError } = await supabase.storage
             .from('resumes')
-            .remove([fileName]);
+            .remove([`${session.user.id}/${fileName}`]);
 
           if (storageError) throw storageError;
         }
@@ -113,7 +214,8 @@ export function useResumes() {
       const { error: dbError } = await supabase
         .from('resumes')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .eq('user_id', session.user.id);
 
       if (dbError) throw dbError;
 
@@ -128,7 +230,7 @@ export function useResumes() {
       console.error('Error deleting resume:', error);
       toast({
         title: 'Error',
-        description: 'Failed to delete resume',
+        description: error instanceof Error ? error.message : 'Failed to delete resume',
         variant: 'destructive',
       });
     }
