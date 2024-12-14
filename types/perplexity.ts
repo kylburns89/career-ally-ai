@@ -27,36 +27,80 @@ export interface PerplexityResponse {
   };
 }
 
+export interface Source {
+  id: number;
+  title: string;
+  url: string;
+  icon: string;
+  description: string;
+}
+
 export interface MarketAnalysis {
-  salary: {
-    min: number;
-    max: number;
-    average: number;
+  overview: string;
+  demandAndOpportunities: {
+    content: string;
+    citations: number[];
   };
-  jobOpenings: number;
-  workModel: {
-    remote: number;
-    hybrid: number;
-    onsite: number;
+  salaryRange: {
+    content: string;
+    rates: {
+      hourlyRate: {
+        average: number;
+        min: number;
+        max: number;
+        citation: number;
+      };
+      annualRange: {
+        min: number;
+        max: number;
+        commonMin: number;
+        commonMax: number;
+        citation: number;
+      };
+      seniorRange: {
+        min: number;
+        max: number;
+        yearsExperience: number;
+        citation: number;
+      };
+    };
+    locationFactors: {
+      content: string;
+      citation: number;
+    };
+    industryFactors: {
+      content: string;
+      citation: number;
+    };
   };
-  trends: {
-    growthRate: number;
-    yearOverYearChange: number;
-    topSpecializations: Array<{
-      name: string;
-      growth: number;
+  skillsInDemand: {
+    content: string;
+    skills: {
+      core: string[];
+      technical: Array<{
+        skill: string;
+        demandPercentage: number;
+        citation: number;
+      }>;
+    };
+  };
+  careerGrowth: {
+    content: string;
+    paths: Array<{
+      role: string;
+      salary: number;
+      description: string;
+      citation: number;
     }>;
   };
-  industryDemand: Array<{
-    industry: string;
-    demand: number;
-  }>;
-  geographicalHotspots: Array<{
-    city: string;
-    jobShare: number;
-  }>;
   marketOutlook: {
-    projectedGrowth: number;
-    keyTrends: string[];
+    content: string;
+    keyPoints: string[];
+    citation: number;
   };
+  certifications: {
+    content: string;
+    citation: number;
+  };
+  sources: Source[];
 }

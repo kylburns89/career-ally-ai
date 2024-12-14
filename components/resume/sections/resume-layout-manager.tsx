@@ -129,10 +129,10 @@ export function ResumeLayoutManager({ sections, onChange }: LayoutManagerProps) 
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border p-6 space-y-4">
-      <div className="flex items-center gap-2 pb-2 border-b">
-        <Layout className="h-5 w-5" />
-        <h3 className="text-lg font-semibold">Layout Manager</h3>
+    <div className="bg-card rounded-lg shadow-sm border p-6 space-y-4">
+      <div className="flex items-center gap-2 pb-2 border-b border-border">
+        <Layout className="h-5 w-5 text-foreground" />
+        <h3 className="text-lg font-semibold text-foreground">Layout Manager</h3>
       </div>
       
       <p className="text-sm text-muted-foreground">
@@ -143,7 +143,7 @@ export function ResumeLayoutManager({ sections, onChange }: LayoutManagerProps) 
         <div className="grid grid-cols-2 gap-6">
           {Object.values(columns).map(column => (
             <div key={column.id} className="space-y-3">
-              <h4 className="font-medium text-sm">
+              <h4 className="font-medium text-sm text-foreground">
                 {column.title}
               </h4>
               <Droppable droppableId={column.id}>
@@ -168,7 +168,7 @@ export function ResumeLayoutManager({ sections, onChange }: LayoutManagerProps) 
                             ref={provided.innerRef}
                             {...provided.draggableProps}
                             {...provided.dragHandleProps}
-                            className={`p-3 bg-white border rounded-md shadow-sm transition-all flex items-center gap-3 group hover:border-primary/50 ${
+                            className={`p-3 bg-card border rounded-md shadow-sm transition-all flex items-center gap-3 group hover:border-primary/50 ${
                               snapshot.isDragging 
                                 ? "shadow-lg border-primary" 
                                 : "hover:shadow-md"
@@ -176,7 +176,7 @@ export function ResumeLayoutManager({ sections, onChange }: LayoutManagerProps) 
                             style={provided.draggableProps.style}
                           >
                             <GripVertical className="h-4 w-4 text-muted-foreground group-hover:text-primary flex-shrink-0" />
-                            <span className="truncate font-medium">
+                            <span className="truncate font-medium text-foreground">
                               {SECTION_NAMES[sectionId] || sectionId}
                             </span>
                           </div>

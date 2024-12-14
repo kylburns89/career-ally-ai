@@ -1,15 +1,24 @@
 // Template types
 export const TEMPLATES = [
   "professional",
-  "creative",
-  "technical",
-  "modern",
-  "executive",
   "minimal",
+  "technical",
+  "executive",
+  "creative",
+  "academic"
 ] as const;
 
 export type Template = typeof TEMPLATES[number];
 export type FormTemplate = Template | null | string;
+
+// Template preview interface
+export interface TemplatePreview {
+  id: Template;
+  name: string;
+  description: string;
+  preview: string;
+  status?: string;
+}
 
 // Form-specific interfaces
 export interface ExperienceFormData {
@@ -348,19 +357,3 @@ export function isValidTemplate(template: string | null): template is Template {
   if (!template) return false;
   return TEMPLATES.includes(template.toLowerCase() as Template);
 }
-
-// Template preview interface
-export interface TemplatePreview {
-  id: Template;
-  name: string;
-  description: string;
-  preview: React.ReactNode;
-}
-
-// Template preview data
-export const templatePreviews: TemplatePreview[] = TEMPLATES.map(id => ({
-  id,
-  name: id.charAt(0).toUpperCase() + id.slice(1),
-  description: `${id.charAt(0).toUpperCase() + id.slice(1)} template`,
-  preview: null, // Preview component will be provided by the UI
-}));

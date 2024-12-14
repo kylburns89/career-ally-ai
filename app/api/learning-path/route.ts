@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
-import { searchLearningResources, searchCertifications } from '@/lib/tavily';
-import { SkillGap, LearningResource, TavilySearchResult } from '@/types/tavily';
+import { searchLearningResources, searchCertifications } from '../../../lib/brave';
+import { SkillGap, LearningResource } from '../../../types/learning';
+import { AdaptedSearchResult } from '../../../types/brave';
 
 interface SkillInput {
   name: string;
@@ -71,8 +72,8 @@ export async function POST(request: Request) {
         const certificationsResponse = await searchCertifications(skill.name);
         console.log(`Found ${certificationsResponse.results.length} certifications`);
 
-        // Transform Tavily results into learning resources
-        const resources: LearningResource[] = resourcesResponse.results.map((result: TavilySearchResult) => ({
+        // Transform search results into learning resources
+        const resources: LearningResource[] = resourcesResponse.results.map((result: AdaptedSearchResult) => ({
           id: crypto.randomUUID(),
           title: result.title,
           url: result.url,

@@ -38,6 +38,7 @@ import {
 import { Badge } from "../ui/badge"
 import { Textarea } from "../ui/textarea"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../ui/alert-dialog"
+import { toast } from "sonner"
 
 export function ContactManager() {
   const { contacts, stats, isLoading, addContact, updateContact, deleteContact, addCommunication } = useContacts()
@@ -67,13 +68,20 @@ export function ContactManager() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (isEditMode && selectedContactId) {
-      await updateContact(selectedContactId, newContact)
-    } else {
-      await addContact(newContact as Omit<Contact, "id" | "user_id" | "created_at" | "updated_at" | "communication_history">)
+    try {
+      if (isEditMode && selectedContactId) {
+        await updateContact(selectedContactId, newContact)
+        toast.success(`Updated contact: ${newContact.name}`)
+      } else {
+        await addContact(newContact as Omit<Contact, "id" | "user_id" | "created_at" | "updated_at" | "communication_history">)
+        toast.success(`Added new contact: ${newContact.name}`)
+      }
+      setIsOpen(false)
+      resetForm()
+    } catch (error) {
+      console.error('Error saving contact:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to save contact')
     }
-    setIsOpen(false)
-    resetForm()
   }
 
   const handleEdit = (contact: Contact) => {
@@ -99,18 +107,32 @@ export function ContactManager() {
 
   const confirmDelete = async () => {
     if (contactToDelete) {
-      await deleteContact(contactToDelete)
-      setDeleteDialogOpen(false)
-      setContactToDelete(null)
+      try {
+        await deleteContact(contactToDelete)
+        toast.success("Contact deleted successfully")
+        setDeleteDialogOpen(false)
+        setContactToDelete(null)
+      } catch (error) {
+        console.error('Error deleting contact:', error)
+        toast.error(error instanceof Error ? error.message : 'Failed to delete contact')
+      }
     }
   }
 
   const handleAddCommunication = async (e: React.FormEvent) => {
     e.preventDefault()
     if (selectedContactId && newCommunication.type && newCommunication.summary) {
-      await addCommunication(selectedContactId, newCommunication as Omit<CommunicationEntry, "date">)
-      setShowCommunicationDialog(false)
-      resetCommunicationForm()
+      try {
+        await addCommunication(selectedContactId, newCommunication as Omit<CommunicationEntry, "date">)
+        toast.success("Communication entry added successfully")
+        setShowCommunicationDialog(false)
+        resetCommunicationForm()
+      } catch (error) {
+        console.error('Error adding communication:', error)
+        toast.error(error instanceof Error ? error.message : 'Failed to add communication entry')
+      }
+    } else {
+      toast.error("Please fill in all required fields")
     }
   }
 

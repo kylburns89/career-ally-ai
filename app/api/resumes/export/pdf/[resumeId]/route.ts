@@ -36,45 +36,9 @@ const templateStyles: Record<Template, TemplateStyles> = {
     sectionHeaderSize: 14,
     textSize: 11,
     headerColor: [0, 0, 0],
-    accentColor: [0, 0, 255],
+    accentColor: [0, 102, 255],
     font: "helvetica",
     spacing: 0.2
-  },
-  creative: {
-    headerSize: 28,
-    sectionHeaderSize: 16,
-    textSize: 11,
-    headerColor: [128, 0, 128],
-    accentColor: [128, 0, 128],
-    font: "helvetica",
-    spacing: 0.25
-  },
-  technical: {
-    headerSize: 22,
-    sectionHeaderSize: 14,
-    textSize: 10,
-    headerColor: [0, 0, 128],
-    accentColor: [0, 0, 255],
-    font: "courier",
-    spacing: 0.15
-  },
-  modern: {
-    headerSize: 26,
-    sectionHeaderSize: 15,
-    textSize: 11,
-    headerColor: [0, 128, 128],
-    accentColor: [0, 128, 128],
-    font: "helvetica",
-    spacing: 0.22
-  },
-  executive: {
-    headerSize: 24,
-    sectionHeaderSize: 16,
-    textSize: 11,
-    headerColor: [64, 64, 64],
-    accentColor: [0, 0, 0],
-    font: "times",
-    spacing: 0.23
   },
   minimal: {
     headerSize: 22,
@@ -84,6 +48,42 @@ const templateStyles: Record<Template, TemplateStyles> = {
     accentColor: [128, 128, 128],
     font: "helvetica",
     spacing: 0.18
+  },
+  technical: {
+    headerSize: 22,
+    sectionHeaderSize: 14,
+    textSize: 10,
+    headerColor: [0, 128, 0],
+    accentColor: [0, 150, 136],
+    font: "courier",
+    spacing: 0.15
+  },
+  executive: {
+    headerSize: 26,
+    sectionHeaderSize: 16,
+    textSize: 11,
+    headerColor: [33, 33, 33],
+    accentColor: [66, 66, 66],
+    font: "helvetica",
+    spacing: 0.22
+  },
+  creative: {
+    headerSize: 24,
+    sectionHeaderSize: 15,
+    textSize: 11,
+    headerColor: [147, 51, 234],
+    accentColor: [219, 39, 119],
+    font: "helvetica",
+    spacing: 0.2
+  },
+  academic: {
+    headerSize: 24,
+    sectionHeaderSize: 15,
+    textSize: 11,
+    headerColor: [139, 0, 0],
+    accentColor: [153, 27, 27],
+    font: "times",
+    spacing: 0.2
   }
 };
 
@@ -104,9 +104,92 @@ function sanitizeText(text: unknown): string {
   }
   return text
     .replace(/[^\x20-\x7E\n]/g, '')
-    .replace(/\s+/g, ' ')
-    .replace(/\n\s*/g, '\n')
     .trim();
+}
+
+// Helper function to format description into bullet points
+function formatDescription(description: string): string[] {
+  // Split by any combination of newlines, bullet points, or dashes
+  return description
+    .split(/[\n\r]+\s*|\s*[•\-*]\s+/)
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
+    .map(line => {
+      // Remove any existing bullet points or dashes at the start
+      return line.replace(/^[•\-*]\s*/, '').trim();
+    });
+}
+
+// Helper function to add text with line breaks and bullet points
+function addWrappedText(doc: jsPDF, text: string, x: number, y: number, maxWidth: number, addBullet: boolean = false, styles: TemplateStyles): number {
+  const sanitizedText = sanitizeText(text);
+  if (!sanitizedText) return y;
+
+  let lines: string[];
+  if (addBullet) {
+    // Process text into properly formatted bullet points
+    lines = formatDescription(sanitizedText);
+  } else {
+    lines = sanitizedText.split(/\n/).filter(Boolean);
+  }
+  
+  let currentY = y;
+  for (const line of lines) {
+    if (!line.trim()) continue; // Skip empty lines
+    
+    // Add bullet point if needed
+    const textToWrite = addBullet ? `• ${line}` : line;
+    
+    // Split long lines into multiple lines that fit within maxWidth
+    const wrappedLines = doc.splitTextToSize(textToWrite, maxWidth);
+    
+    for (let i = 0; i < wrappedLines.length; i++) {
+      currentY = checkPageBreak(doc, currentY);
+      
+      // For continuation lines of a bullet point, add proper indentation
+      if (addBullet && i > 0) {
+        doc.text(wrappedLines[i], x + 0.25, currentY); // Increased indentation for wrapped lines
+      } else {
+        doc.text(wrappedLines[i], x, currentY);
+      }
+      
+      currentY += styles.spacing;
+    }
+    
+    // Add extra spacing between bullet points
+    if (addBullet) {
+      currentY += styles.spacing * 0.5; // Increased spacing between bullet points
+    }
+  }
+
+  return currentY;
+}
+
+// Helper function to format technologies
+function formatTechnologies(technologies: string | string[]): string {
+  if (Array.isArray(technologies)) {
+    return technologies.filter(Boolean).join(", ");
+  }
+  return sanitizeText(technologies);
+}
+
+// Helper function to add a section header
+function addSectionHeader(doc: jsPDF, text: string, y: number, styles: TemplateStyles): number {
+  y = checkPageBreak(doc, y);
+  doc.setFontSize(styles.sectionHeaderSize);
+  doc.setFont(styles.font, "bold");
+  doc.setTextColor(...styles.headerColor);
+  doc.text(text, PAGE.MARGIN.LEFT, y);
+  
+  // Add underline for section headers
+  const textWidth = doc.getTextWidth(text);
+  doc.setLineWidth(0.02);
+  doc.setDrawColor(...styles.accentColor);
+  doc.line(PAGE.MARGIN.LEFT, y + 0.1, PAGE.MARGIN.LEFT + textWidth, y + 0.1);
+  
+  doc.setTextColor(0, 0, 0);
+  doc.setDrawColor(0, 0, 0);
+  return y + styles.spacing + 0.1;
 }
 
 // Helper function to add a clickable link with underline
@@ -139,52 +222,6 @@ function addLink(doc: jsPDF, text: string, x: number, y: number, styles: Templat
   doc.setTextColor(0, 0, 0);
   doc.setDrawColor(0, 0, 0);
   doc.setFontSize(styles.textSize);
-}
-
-// Helper function to add text with line breaks and bullet points
-function addWrappedText(doc: jsPDF, text: string, x: number, y: number, maxWidth: number, addBullet: boolean = false, styles: TemplateStyles): number {
-  const sanitizedText = sanitizeText(text);
-  if (!sanitizedText) return y;
-
-  const lines = sanitizedText.split("\n").filter(Boolean).map(line => {
-    line = line.trim();
-    if (addBullet && !line.startsWith('•') && !line.startsWith('-')) {
-      return `• ${line}`;
-    }
-    return line;
-  });
-  
-  let currentY = y;
-  for (const line of lines) {
-    const wrappedLines = doc.splitTextToSize(line, maxWidth);
-    for (const wrappedLine of wrappedLines) {
-      currentY = checkPageBreak(doc, currentY);
-      doc.text(wrappedLine, x, currentY);
-      currentY += styles.spacing;
-    }
-    currentY += 0.05;
-  }
-
-  return currentY;
-}
-
-// Helper function to format technologies
-function formatTechnologies(technologies: string | string[]): string {
-  if (Array.isArray(technologies)) {
-    return technologies.filter(Boolean).join(", ");
-  }
-  return sanitizeText(technologies);
-}
-
-// Helper function to add a section header
-function addSectionHeader(doc: jsPDF, text: string, y: number, styles: TemplateStyles): number {
-  y = checkPageBreak(doc, y);
-  doc.setFontSize(styles.sectionHeaderSize);
-  doc.setFont(styles.font, "bold");
-  doc.setTextColor(...styles.headerColor);
-  doc.text(text, PAGE.MARGIN.LEFT, y);
-  doc.setTextColor(0, 0, 0);
-  return y + styles.spacing + 0.1;
 }
 
 // Helper function to set up the document with proper font encoding
@@ -334,6 +371,23 @@ export async function GET(
       }
 
       currentY += styles.spacing;
+
+      // Summary section
+      if (content.summary) {
+        currentY = addSectionHeader(doc, "Summary", currentY, styles);
+        doc.setFontSize(styles.textSize);
+        doc.setFont(styles.font, "normal");
+        currentY = addWrappedText(
+          doc,
+          content.summary,
+          PAGE.MARGIN.LEFT,
+          currentY,
+          PAGE.WIDTH - PAGE.MARGIN.LEFT - PAGE.MARGIN.RIGHT,
+          false,
+          styles
+        );
+        currentY += styles.spacing;
+      }
 
       // Experience section
       if (content.experience?.length > 0) {

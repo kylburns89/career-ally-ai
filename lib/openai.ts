@@ -52,7 +52,7 @@ export async function createTogetherCompletion(
   temperature: number = 0.7
 ) {
   const response = await together.chat.completions.create({
-    model: "meta-llama/Llama-3-8b-chat-hf",
+    model: "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
     messages,
     temperature,
     max_tokens: 4000,

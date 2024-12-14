@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useToast } from '@/components/ui/use-toast';
 import type { Resume, ResumeContent, Template } from '@/types/resume';
-import { normalizeTemplate } from '@/types/resume';
+import { normalizeTemplate, formToDbFormat } from '@/types/resume';
 import type { Database } from '@/types/database';
+import type { Json } from '@/types/database';
 
 export function useResumes() {
   const [resumes, setResumes] = useState<Resume[]>([]);
@@ -78,6 +79,61 @@ export function useResumes() {
     }
   };
 
+  const updateResume = async (id: string, name: string, content: ResumeContent) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new Error('No active session');
+      }
+
+      // Convert content to database format
+      const dbContent = formToDbFormat(content);
+      
+      // Convert to Json type for Supabase
+      const jsonContent = JSON.parse(JSON.stringify(dbContent)) as Json;
+
+      const { data: resume, error } = await supabase
+        .from('resumes')
+        .update({
+          name,
+          content: jsonContent,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .eq('user_id', session.user.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Update local state
+      setResumes(prev => prev.map(r => 
+        r.id === id ? {
+          ...r,
+          name: resume.name,
+          content: dbContent,
+          updatedAt: resume.updated_at,
+        } : r
+      ));
+
+      toast({
+        title: 'Success',
+        description: 'Resume updated successfully',
+      });
+
+      return resume;
+    } catch (error) {
+      console.error('Error updating resume:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to update resume',
+        variant: 'destructive',
+      });
+      throw error;
+    }
+  };
+
   const uploadResume = async (file: File, name: string) => {
     try {
       setIsUploading(true);
@@ -131,13 +187,16 @@ export function useResumes() {
         file_url: url,
       };
 
+      // Convert to Json type for Supabase
+      const jsonContent = JSON.parse(JSON.stringify(dbContent)) as Json;
+
       // Create resume record in database
       const { data: resume, error: dbError } = await supabase
         .from('resumes')
         .insert({
           user_id: session.user.id,
           name,
-          content: dbContent,
+          content: jsonContent,
         })
         .select()
         .single();
@@ -149,17 +208,7 @@ export function useResumes() {
         id: resume.id,
         userId: resume.user_id,
         name: resume.name,
-        content: {
-          personalInfo: dbContent.personalInfo,
-          summary: dbContent.summary,
-          experience: dbContent.experience,
-          education: dbContent.education,
-          skills: dbContent.skills,
-          projects: dbContent.projects,
-          certifications: dbContent.certifications,
-          template: defaultTemplate,
-          sections: dbContent.sections,
-        },
+        content: dbContent,
         createdAt: resume.created_at,
         updatedAt: resume.updated_at,
         file_url: url,
@@ -241,6 +290,7 @@ export function useResumes() {
     isLoading,
     isUploading,
     uploadResume,
+    updateResume,
     deleteResume,
     refreshResumes: fetchResumes,
   };

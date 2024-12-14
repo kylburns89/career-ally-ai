@@ -16,20 +16,20 @@ export function CoverLetterPreview({ content, template }: CoverLetterPreviewProp
   switch (template) {
     case 'creative':
       return (
-        <div className="bg-white min-h-[500px] w-full">
-          {/* Blue accent header */}
-          <div className="h-4 bg-blue-500 w-full mb-6" />
+        <div className="bg-card min-h-[500px] w-full">
+          {/* Accent header */}
+          <div className="h-4 bg-primary w-full mb-6" />
           
           <div className="px-8">
             {/* Modern date */}
-            <div className="font-sans text-sm text-gray-700 mb-6">{date}</div>
+            <div className="font-sans text-sm text-muted-foreground mb-6">{date}</div>
             
             {/* Content with left borders */}
             <div className="space-y-6">
               {paragraphs.map((paragraph, index) => (
                 <div
                   key={index}
-                  className="pl-4 border-l-2 border-blue-500 font-sans text-sm leading-relaxed text-gray-800"
+                  className="pl-4 border-l-2 border-primary font-sans text-sm leading-relaxed text-foreground"
                 >
                   {paragraph}
                 </div>
@@ -41,9 +41,9 @@ export function CoverLetterPreview({ content, template }: CoverLetterPreviewProp
 
     case 'technical':
       return (
-        <div className="bg-white min-h-[500px] w-full p-8 font-mono text-sm">
-          <div className="bg-gray-100 p-3 mb-6">
-            <div className="text-gray-600">
+        <div className="bg-card min-h-[500px] w-full p-8 font-mono text-sm">
+          <div className="bg-muted p-3 mb-6">
+            <div className="text-muted-foreground">
               {`// ${new Date().toLocaleDateString('en-US', {
                 year: 'numeric',
                 month: '2-digit',
@@ -56,12 +56,12 @@ export function CoverLetterPreview({ content, template }: CoverLetterPreviewProp
             {paragraphs.map((paragraph, index) => (
               <div key={index}>
                 {index === 0 && (
-                  <div className="text-gray-600 mb-2">{"/* Introduction */"}</div>
+                  <div className="text-muted-foreground mb-2">{"/* Introduction */"}</div>
                 )}
                 {index === paragraphs.length - 1 && (
-                  <div className="text-gray-600 mb-2">{"/* Closing */"}</div>
+                  <div className="text-muted-foreground mb-2">{"/* Closing */"}</div>
                 )}
-                <div className="leading-relaxed text-gray-800">{paragraph}</div>
+                <div className="leading-relaxed text-foreground">{paragraph}</div>
               </div>
             ))}
           </div>
@@ -70,16 +70,16 @@ export function CoverLetterPreview({ content, template }: CoverLetterPreviewProp
 
     default: // Professional
       return (
-        <div className="bg-white min-h-[500px] w-full p-8">
+        <div className="bg-card min-h-[500px] w-full p-8">
           {/* Traditional date */}
-          <div className="font-serif text-sm text-gray-700 mb-6">{date}</div>
+          <div className="font-serif text-sm text-muted-foreground mb-6">{date}</div>
           
           {/* Content with proper spacing */}
           <div className="space-y-6">
             {paragraphs.map((paragraph, index) => (
               <div
                 key={index}
-                className="font-serif text-sm leading-relaxed text-gray-800"
+                className="font-serif text-sm leading-relaxed text-foreground"
               >
                 {paragraph}
               </div>

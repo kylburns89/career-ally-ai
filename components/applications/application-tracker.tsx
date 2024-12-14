@@ -48,6 +48,7 @@ import ResumePreview from "../resume/resume-preview"
 import { CoverLetterPreview } from "../cover-letter/cover-letter-preview"
 import { ApplicationAnalyticsDashboard } from "./application-analytics"
 import Link from "next/link"
+import { toast } from "sonner"
 
 type ApplicationStatus = "applied" | "interviewing" | "offer" | "rejected"
 
@@ -127,6 +128,7 @@ export function ApplicationTracker() {
 
     if (error) {
       console.error("Error fetching applications:", error)
+      toast.error("Failed to fetch applications")
       return
     }
 
@@ -145,6 +147,7 @@ export function ApplicationTracker() {
     const { data: { session }, error: sessionError } = await supabase.auth.getSession()
     if (sessionError || !session) {
       console.error("No session found:", sessionError)
+      toast.error("Authentication error. Please try logging in again.")
       return
     }
 
@@ -180,15 +183,22 @@ export function ApplicationTracker() {
         .update(application)
         .eq("id", newApplication.id)
       error = updateError
+      if (!error) {
+        toast.success(`Updated application for ${application.job_title} at ${application.company}`)
+      }
     } else {
       const { error: insertError } = await supabase
         .from("applications")
         .insert([application])
       error = insertError
+      if (!error) {
+        toast.success(`Added new application for ${application.job_title} at ${application.company}`)
+      }
     }
 
     if (error) {
       console.error("Error saving application:", error)
+      toast.error(error.message || "Failed to save application")
       return
     }
 
@@ -253,9 +263,11 @@ export function ApplicationTracker() {
 
     if (error) {
       console.error("Error deleting application:", error)
+      toast.error("Failed to delete application")
       return
     }
 
+    toast.success("Application deleted successfully")
     setDeleteDialogOpen(false)
     setApplicationToDelete(null)
     fetchApplications()
@@ -270,6 +282,7 @@ export function ApplicationTracker() {
 
     if (error) {
       console.error("Error fetching resume:", error)
+      toast.error("Failed to load resume preview")
       return
     }
 
@@ -286,6 +299,7 @@ export function ApplicationTracker() {
 
     if (error) {
       console.error("Error fetching cover letter:", error)
+      toast.error("Failed to load cover letter preview")
       return
     }
 

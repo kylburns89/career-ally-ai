@@ -1,15 +1,15 @@
-import { PageContainer } from "@/components/page-container";
-import { MarketIntelligenceHub } from "@/components/market-intelligence/market-intelligence-hub";
+"use client"
 
-export const metadata = {
-  title: 'Market Intelligence Hub | Career Ally AI',
-  description: 'Analyze real-time job market data, salary trends, and industry insights to make informed career decisions.',
-};
+import { PageContainer } from "../../components/page-container";
+import { MarketIntelligenceHub } from "../../components/market-intelligence/market-intelligence-hub";
+import ProtectedRoute from "../../components/auth/protected-route";
 
 export default function MarketIntelligencePage() {
   return (
-    <PageContainer>
-      <MarketIntelligenceHub />
-    </PageContainer>
+    <ProtectedRoute>
+      <PageContainer>
+        <MarketIntelligenceHub />
+      </PageContainer>
+    </ProtectedRoute>
   );
 }

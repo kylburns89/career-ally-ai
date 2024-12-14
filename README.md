@@ -10,6 +10,7 @@ An AI-powered career companion that helps with resumes, cover letters, interview
 - Salary Coach
 - Technical Challenge Practice
 - Application Tracker
+- Market Intelligence Hub with real-time job market analysis
 
 ## Tech Stack
 
@@ -18,6 +19,8 @@ An AI-powered career companion that helps with resumes, cover letters, interview
 - Tailwind CSS
 - Supabase (Auth & Database)
 - OpenAI API
+- Brave Search API for market research
+- Together AI for LLM inference
 - Uploadthing for file uploads
 - Shadcn/ui components
 
@@ -28,8 +31,10 @@ An AI-powered career companion that helps with resumes, cover letters, interview
 1. Node.js 18+ installed
 2. A Supabase account
 3. An OpenAI API key
-4. An Uploadthing account
-5. A RapidAPI key (for job search features)
+4. A Brave Search API key (for market research)
+5. A Together AI API key (for LLM inference)
+6. An Uploadthing account
+7. A RapidAPI key (for job search features)
 
 ### Environment Setup
 
@@ -58,12 +63,19 @@ An AI-powered career companion that helps with resumes, cover letters, interview
    # OpenAI
    OPENAI_API_KEY=your_openai_api_key
 
+   # Market Intelligence APIs
+   BRAVE_API_KEY=your_brave_api_key # Get from https://api.search.brave.com/app/
+   TOGETHER_API_KEY=your_together_api_key
+
    # UploadThing
    UPLOADTHING_SECRET=your_uploadthing_secret
    UPLOADTHING_APP_ID=your_uploadthing_app_id
 
    # RapidAPI
    RAPID_API_KEY=your_rapidapi_key
+
+   # App URL
+   NEXT_PUBLIC_APP_URL=http://localhost:3000
    ```
 
 ### Database Setup
@@ -114,6 +126,7 @@ The application includes several API routes:
 - `/api/salary-coach`: Salary negotiation assistance
 - `/api/challenges`: Technical challenge endpoints
 - `/api/applications`: Job application tracking
+- `/api/market-analysis`: Real-time job market analysis using Brave Search and Together AI
 
 ## Contributing
 
@@ -131,5 +144,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 - [Shadcn/ui](https://ui.shadcn.com/) for the beautiful UI components
 - [OpenAI](https://openai.com/) for the AI capabilities
+- [Brave Search](https://brave.com/search/) for market research capabilities
+- [Together AI](https://together.ai/) for LLM inference
 - [Supabase](https://supabase.com/) for authentication and database
 - [Next.js](https://nextjs.org/) for the framework

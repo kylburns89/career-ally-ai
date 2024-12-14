@@ -1,21 +1,21 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Card } from '../ui/card';
+import { Progress } from '../ui/progress';
+import { Button } from '../ui/button';
+import { Badge } from '../ui/badge';
 import { 
   Accordion, 
   AccordionContent, 
   AccordionItem, 
   AccordionTrigger 
-} from '@/components/ui/accordion';
-import { SkillGap, LearningResource, TavilySearchResult } from '@/types/tavily';
+} from '../ui/accordion';
+import { SkillGap, LearningResource } from '../../types/learning';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { useProfile } from '@/hooks/use-profile';
-import { useToast } from '@/components/ui/use-toast';
-import { Database } from '@/types/database';
+import { useProfile } from '../../hooks/use-profile';
+import { useToast } from '../ui/use-toast';
+import { Database } from '../../types/database';
 
 interface LearningPathData {
   id: string;
@@ -266,7 +266,7 @@ export default function LearningPath() {
 
                 <div className="grid gap-4">
                   <h4 className="font-semibold">Recommended Certifications</h4>
-                  {skillGap.certifications.map((cert: TavilySearchResult) => (
+                  {skillGap.certifications.map((cert) => (
                     <Card key={cert.url} className="p-4">
                       <div className="flex items-center justify-between">
                         <div>

@@ -1,18 +1,4 @@
-export interface TavilySearchResult {
-  title: string;
-  url: string;
-  content: string;
-  score: number;
-  source: string;
-  published_date?: string;
-  author?: string;
-}
-
-export interface TavilySearchAPIResponse {
-  results: TavilySearchResult[];
-  query: string;
-  status: string;
-}
+import { AdaptedSearchResult } from './brave';
 
 export interface LearningResource {
   id: string;
@@ -32,7 +18,7 @@ export interface SkillGap {
   currentLevel: number;
   targetLevel: number;
   resources: LearningResource[];
-  certifications: TavilySearchResult[];
+  certifications: AdaptedSearchResult[];
 }
 
 export interface LearningPath {

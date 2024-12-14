@@ -56,6 +56,35 @@ export interface SavedResume {
 export interface Database {
   public: {
     Tables: {
+      api_rate_limits: {
+        Row: {
+          id: string
+          user_id: string
+          api_name: string
+          requests_count: number
+          last_reset: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          api_name: string
+          requests_count?: number
+          last_reset?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          api_name?: string
+          requests_count?: number
+          last_reset?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
       resume_analyses: {
         Row: {
           id: string
@@ -414,7 +443,25 @@ export interface Database {
       }
     }
     Functions: {
-      [_ in never]: never
+      update_rate_limit: {
+        Args: {
+          p_user_id: string
+          p_api_name: string
+          p_max_requests: number
+          p_window_hours: number
+        }
+        Returns: boolean
+      }
+      get_rate_limit_status: {
+        Args: {
+          p_user_id: string
+          p_api_name: string
+        }
+        Returns: {
+          requests_count: number
+          last_reset: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

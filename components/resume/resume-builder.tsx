@@ -1,8 +1,9 @@
-"use client";
-
 import { useCallback, useEffect, useState } from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import { toast } from "sonner";
+import { Plus, Trash2, Edit2, Check, X } from "lucide-react";
+import { format } from "date-fns";
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { ResumeHeader } from "./sections/resume-header";
 import { ResumeSummary } from "./sections/resume-summary";
 import { ResumeExperience } from "./sections/resume-experience";
@@ -13,8 +14,6 @@ import { ResumeCertifications } from "./sections/resume-certifications";
 import { ResumeLayoutManager } from "./sections/resume-layout-manager";
 import ResumePreview from "./resume-preview";
 import { useResumes } from "../../hooks/use-resumes";
-import { format } from "date-fns";
-import { Plus } from "lucide-react";
 import { 
   type ResumeFormData, 
   type Template, 
@@ -23,23 +22,38 @@ import {
   type ResumeContent,
   type Resume,
   normalizeTechnologies,
-  defaultFormValues
+  defaultFormValues,
+  formToDbFormat
 } from "../../types/resume";
+import type { Database } from "../../types/database";
+import type { Json } from "../../types/database";
 
 interface ResumeBuilderProps {
   activeResume?: SavedResume;
-  setActiveResume?: (resume: SavedResume) => void;
+  setActiveResume?: (resume: SavedResume | undefined) => void;
   selectedTemplate?: Template;
   onSave?: (data: ResumeFormData) => void;
 }
 
 const TEMPLATES = [
-  { id: "professional", name: "Professional", preview: "/templates/professional.png" },
-  { id: "creative", name: "Creative", preview: "/templates/creative.png" },
-  { id: "technical", name: "Technical", preview: "/templates/technical.png" },
-  { id: "modern", name: "Modern", preview: "/templates/modern.png" },
-  { id: "executive", name: "Executive", preview: "/templates/executive.png" },
-  { id: "minimal", name: "Minimal", preview: "/templates/minimal.png" },
+  { 
+    id: "professional", 
+    name: "Professional", 
+    preview: "/templates/professional.png",
+    description: "A clean and modern template suitable for most industries"
+  },
+  { 
+    id: "minimal", 
+    name: "Minimal", 
+    preview: "/templates/minimal.png",
+    description: "Clean and concise design that focuses on essential information"
+  },
+  { 
+    id: "technical", 
+    name: "Technical", 
+    preview: "/templates/technical.png",
+    description: "Optimized for software developers and IT professionals"
+  }
 ] as const;
 
 export function ResumeBuilder({
@@ -48,10 +62,12 @@ export function ResumeBuilder({
   selectedTemplate: initialTemplate,
   onSave,
 }: ResumeBuilderProps): JSX.Element {
-  const { resumes } = useResumes();
+  const { resumes = [], deleteResume, updateResume, refreshResumes } = useResumes();
   const [selectedTemplate, setSelectedTemplate] = useState<Template>(initialTemplate || "professional");
   const [skills, setSkills] = useState<string[]>([]);
   const [newSkill, setNewSkill] = useState("");
+  const [editingName, setEditingName] = useState<string | null>(null);
+  const [tempName, setTempName] = useState("");
   const [sections, setSections] = useState([
     "summary",
     "experience",
@@ -60,6 +76,8 @@ export function ResumeBuilder({
     "projects",
     "certifications",
   ]);
+
+  const supabase = createClientComponentClient<Database>();
 
   const form = useForm<ResumeFormData>({
     defaultValues: {
@@ -71,7 +89,6 @@ export function ResumeBuilder({
     }
   });
 
-  // Initialize form with active resume data
   useEffect(() => {
     if (activeResume?.content) {
       const { skills: resumeSkills, sections: resumeSections, template } = activeResume.content;
@@ -84,9 +101,139 @@ export function ResumeBuilder({
     }
   }, [activeResume, sections, form]);
 
+  const handleCreateResume = async () => {
+    const newResume: ResumeContent = {
+      personalInfo: {
+        fullName: "",
+        email: "",
+        phone: "",
+        location: "",
+      },
+      summary: "",
+      experience: [],
+      education: [],
+      skills: [],
+      projects: [],
+      certifications: [],
+      template: "professional",
+      sections: [
+        "summary",
+        "experience",
+        "education",
+        "skills",
+        "projects",
+        "certifications",
+      ],
+    };
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new Error('No active session');
+      }
+
+      const dbContent = JSON.parse(JSON.stringify(newResume)) as Json;
+
+      const { data: resume, error } = await supabase
+        .from('resumes')
+        .insert({
+          user_id: session.user.id,
+          name: `Resume ${format(new Date(), 'MM/dd/yyyy')}`,
+          content: dbContent,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      const transformedResume: SavedResume = {
+        id: resume.id,
+        userId: resume.user_id,
+        name: resume.name,
+        content: newResume,
+        createdAt: resume.created_at,
+        updatedAt: resume.updated_at,
+      };
+
+      if (setActiveResume) {
+        setActiveResume(transformedResume);
+      }
+      
+      form.reset(newResume);
+      setSkills([]);
+      setSections(newResume.sections || sections);
+      setSelectedTemplate(newResume.template);
+
+      await refreshResumes();
+
+      toast.success("New resume created successfully");
+    } catch (error) {
+      console.error('Error creating resume:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to create resume');
+    }
+  };
+
+  const handleStartEditName = (resumeId: string, currentName: string) => {
+    setEditingName(resumeId);
+    setTempName(currentName);
+  };
+
+  const handleSaveName = async (resumeId: string) => {
+    if (!tempName.trim()) {
+      toast.error("Resume name cannot be empty");
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('resumes')
+        .update({ name: tempName })
+        .eq('id', resumeId);
+
+      if (error) throw error;
+
+      if (activeResume && activeResume.id === resumeId && setActiveResume) {
+        setActiveResume({
+          ...activeResume,
+          name: tempName,
+        });
+      }
+
+      const updatedResumes = resumes.map(resume => 
+        resume.id === resumeId 
+          ? { ...resume, name: tempName }
+          : resume
+      );
+      
+      await refreshResumes();
+
+      setEditingName(null);
+      toast.success("Resume name updated successfully");
+    } catch (error) {
+      console.error('Error updating resume name:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to update resume name');
+    }
+  };
+
+  const handleCancelEditName = () => {
+    setEditingName(null);
+    setTempName("");
+  };
+
   const handleTemplateSelect = (templateId: Template) => {
     setSelectedTemplate(templateId);
     form.setValue("template", templateId);
+  };
+
+  const handleDeleteResume = async (id: string) => {
+    if (window.confirm("Are you sure you want to delete this resume?")) {
+      await deleteResume(id);
+      if (activeResume?.id === id && setActiveResume) {
+        setActiveResume(undefined);
+      }
+      await refreshResumes();
+    }
   };
 
   const handleExport = async () => {
@@ -108,7 +255,7 @@ export function ResumeBuilder({
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `resume.pdf`;
+      a.download = `${activeResume.name || 'resume'}.pdf`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -217,102 +364,161 @@ export function ResumeBuilder({
   };
 
   const onSubmit = async (formData: ResumeFormData) => {
-    const normalizedData: ResumeFormData = {
-      ...formData,
-      skills,
-      sections,
-      template: selectedTemplate,
-      projects: formData.projects?.map((project: ProjectFormData) => ({
-        ...project,
-        technologies: normalizeTechnologies(project.technologies),
-      })),
-    };
-
-    if (onSave) {
-      onSave(normalizedData);
+    if (!activeResume?.id) {
+      toast.error("No active resume selected");
+      return;
     }
 
-    if (setActiveResume && activeResume) {
-      const content: ResumeContent = {
-        ...normalizedData,
-        template: selectedTemplate,
+    try {
+      const normalizedFormData: ResumeFormData = {
+        ...formData,
+        skills,
         sections,
-        projects: normalizedData.projects?.map(project => ({
+        template: selectedTemplate,
+        projects: formData.projects?.map((project: ProjectFormData) => ({
           ...project,
-          technologies: Array.isArray(project.technologies) 
-            ? project.technologies 
-            : project.technologies.split(',').map(t => t.trim()),
-        })),
+          technologies: normalizeTechnologies(project.technologies),
+        })) || [],
+        certifications: formData.certifications || [],
       };
 
-      setActiveResume({
-        ...activeResume,
-        content,
-      });
-    }
+      const dbContent = formToDbFormat(normalizedFormData);
 
-    toast.success("Resume saved successfully");
+      await updateResume(activeResume.id, activeResume.name, dbContent);
+
+      if (setActiveResume) {
+        setActiveResume({
+          ...activeResume,
+          content: dbContent,
+        });
+      }
+
+      if (onSave) {
+        onSave(formData);
+      }
+
+      await refreshResumes();
+
+      toast.success("Resume saved successfully");
+    } catch (error) {
+      console.error('Error saving resume:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to save resume');
+    }
   };
 
   return (
     <div className="container mx-auto py-8">
-      {/* Resume Selection */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold">Your Resumes</h2>
-          <button className="flex items-center gap-2 px-4 py-2 text-sm bg-primary text-white rounded-md hover:bg-primary/90">
+          <h2 className="text-xl font-semibold text-foreground">Your Resumes</h2>
+          <button 
+            onClick={handleCreateResume}
+            className="flex items-center gap-2 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+          >
             <Plus className="h-4 w-4" />
             Create New Resume
           </button>
         </div>
         <div className="flex gap-4 overflow-x-auto pb-4">
-          {resumes?.map((resume: Resume) => (
-            <button
-              key={resume.id}
-              onClick={() => setActiveResume?.(resume)}
-              className={`flex-shrink-0 w-[200px] p-4 rounded-lg border-2 transition-all hover:border-primary ${
-                activeResume?.id === resume.id ? 'border-primary ring-2 ring-primary ring-offset-2' : 'border-gray-200'
-              }`}
-            >
-              <h3 className="font-medium truncate">{resume.name || 'Untitled Resume'}</h3>
-              <p className="text-sm text-gray-500">
-                {format(new Date(resume.updatedAt), 'MM/dd/yyyy')}
-              </p>
-            </button>
+          {resumes.map((resume: Resume) => (
+            <div key={resume.id} className="relative flex-shrink-0 pt-3 pr-3">
+              <button
+                onClick={() => setActiveResume?.(resume)}
+                className={`w-[200px] p-4 rounded-lg border-2 transition-all hover:border-primary ${
+                  activeResume?.id === resume.id ? 'border-primary ring-2 ring-primary ring-offset-2' : 'border-border'
+                }`}
+              >
+                {editingName === resume.id ? (
+                  <div className="flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="text"
+                      value={tempName}
+                      onChange={(e) => setTempName(e.target.value)}
+                      className="w-full px-2 py-1 text-sm border rounded bg-background text-foreground"
+                      autoFocus
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleSaveName(resume.id)}
+                        className="flex-1 p-1 text-xs bg-primary text-primary-foreground rounded hover:bg-primary/90"
+                      >
+                        <Check className="h-3 w-3 mx-auto" />
+                      </button>
+                      <button
+                        onClick={handleCancelEditName}
+                        className="flex-1 p-1 text-xs bg-secondary text-secondary-foreground rounded hover:bg-secondary/90"
+                      >
+                        <X className="h-3 w-3 mx-auto" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between group">
+                      <h3 className="font-medium truncate flex-1 text-foreground">{resume.name || 'Untitled Resume'}</h3>
+                      <div className="relative flex items-center">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleStartEditName(resume.id, resume.name);
+                          }}
+                          className="p-1.5 text-primary hover:bg-primary/10 rounded-full transition-colors relative group-hover:opacity-100 opacity-70"
+                          title="Edit Resume Name"
+                        >
+                          <Edit2 className="h-4 w-4" />
+                          <span className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-popover text-popover-foreground text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                            Edit Name
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {format(new Date(resume.updatedAt), 'MM/dd/yyyy')}
+                    </p>
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => handleDeleteResume(resume.id)}
+                className="absolute top-0 right-0 p-1.5 bg-destructive text-destructive-foreground rounded-full hover:bg-destructive/90 shadow-sm"
+                title="Delete Resume"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
           ))}
         </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-[1fr,1.2fr,1fr] gap-8">
-        {/* Left Column - Form */}
         <div className="space-y-6">
           <FormProvider {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <div className="bg-white rounded-lg shadow-sm border">
+              <div className="bg-card rounded-lg shadow-sm border">
                 <ResumeLayoutManager sections={sections} onChange={handleSectionsChange} />
               </div>
 
-              <div className="bg-white rounded-lg shadow-sm border p-6">
+              <div className="bg-card rounded-lg shadow-sm border p-6">
                 <ResumeHeader form={form} />
               </div>
 
               <div className="space-y-6">
                 {sections.map((sectionId) => (
-                  <div key={sectionId} className="bg-white rounded-lg shadow-sm border p-6">
+                  <div key={sectionId} className="bg-card rounded-lg shadow-sm border p-6">
                     {renderSection(sectionId)}
                   </div>
                 ))}
               </div>
 
               <div className="flex justify-between gap-4">
-                <button type="submit" className="flex-1 px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90">
+                <button type="submit" className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90">
                   Save Resume
                 </button>
                 <button 
                   type="button" 
                   onClick={handleExport} 
                   disabled={!activeResume?.id}
-                  className="flex-1 px-4 py-2 bg-secondary text-white rounded-md hover:bg-secondary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/90 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Export PDF
                 </button>
@@ -321,16 +527,14 @@ export function ResumeBuilder({
           </FormProvider>
         </div>
 
-        {/* Middle Column - Preview */}
         <div className="xl:sticky xl:top-8 h-fit">
-          <div className="bg-white rounded-lg shadow-sm border p-6">
-            <ResumePreview data={form.watch()} />
+          <div className="bg-card rounded-lg shadow-sm border p-6">
+            <ResumePreview data={form.watch()} templateId={selectedTemplate} />
           </div>
         </div>
 
-        {/* Right Column - Templates */}
         <div className="space-y-6">
-          <h3 className="font-medium text-lg">Choose Template</h3>
+          <h3 className="font-medium text-lg text-foreground">Choose Template</h3>
           <div className="grid gap-4">
             {TEMPLATES.map((template) => (
               <button
@@ -348,6 +552,7 @@ export function ResumeBuilder({
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent">
                   <div className="absolute bottom-0 p-3 text-white">
                     <h4 className="font-medium">{template.name}</h4>
+                    <p className="text-sm text-gray-200">{template.description}</p>
                   </div>
                 </div>
               </button>

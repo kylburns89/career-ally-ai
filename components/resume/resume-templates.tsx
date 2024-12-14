@@ -10,6 +10,7 @@ interface Template {
   name: string;
   description: string;
   preview: string;
+  status?: string;
 }
 
 interface ResumeTemplatesProps {
@@ -21,44 +22,56 @@ const templates: Template[] = [
     id: "professional",
     name: "Professional",
     description: "A clean and modern template suitable for most industries",
-    preview: "https://images.unsplash.com/photo-1586281380349-632531db7ed4?q=80&w=300&h=400&fit=crop",
-  },
-  {
-    id: "creative",
-    name: "Creative",
-    description: "Perfect for design and creative industry professionals",
-    preview: "https://images.unsplash.com/photo-1626785774573-4b799315345d?q=80&w=300&h=400&fit=crop",
-  },
-  {
-    id: "technical",
-    name: "Technical",
-    description: "Optimized for software developers and IT professionals",
-    preview: "https://images.unsplash.com/photo-1555066931-4365d14bab8c?q=80&w=300&h=400&fit=crop",
-  },
-  {
-    id: "executive",
-    name: "Executive",
-    description: "Elegant design for senior management and executives",
-    preview: "https://images.unsplash.com/photo-1664575602276-acd073f104c1?q=80&w=300&h=400&fit=crop",
-  },
-  {
-    id: "academic",
-    name: "Academic",
-    description: "Structured format for academic and research positions",
-    preview: "https://images.unsplash.com/photo-1532153975070-2e9ab71f1b14?q=80&w=300&h=400&fit=crop",
+    preview: "/templates/professional.png",
   },
   {
     id: "minimal",
     name: "Minimal",
     description: "Clean and concise design that focuses on essential information",
-    preview: "https://images.unsplash.com/photo-1586075010923-2dd4570fb338?q=80&w=300&h=400&fit=crop",
+    preview: "/templates/minimal.png",
   },
+  {
+    id: "technical",
+    name: "Technical",
+    description: "Optimized for software developers and IT professionals",
+    preview: "/templates/technical.png", // Using professional as placeholder
+  },
+  {
+    id: "executive",
+    name: "Executive",
+    description: "Sophisticated design for senior professionals and executives",
+    preview: "/templates/professional.png", // Using professional as placeholder
+    status: "coming soon"
+  },
+  {
+    id: "creative",
+    name: "Creative",
+    description: "Modern and unique design for creative professionals",
+    preview: "/templates/professional.png", // Using professional as placeholder
+    status: "coming soon"
+  },
+  {
+    id: "academic",
+    name: "Academic",
+    description: "Formal layout ideal for academic and research positions",
+    preview: "/templates/professional.png", // Using professional as placeholder
+    status: "coming soon"
+  }
 ];
 
 export default function ResumeTemplates({ onSelect }: ResumeTemplatesProps) {
   const { toast } = useToast();
 
-  const handleTemplateSelect = (templateId: string) => {
+  const handleTemplateSelect = (templateId: string, status?: string) => {
+    if (status === "coming soon") {
+      toast({
+        title: "Coming Soon",
+        description: "This template will be available soon. Please check back later.",
+        duration: 3000,
+      });
+      return;
+    }
+
     // Call the provided onSelect function
     onSelect(templateId);
 
@@ -79,19 +92,24 @@ export default function ResumeTemplates({ onSelect }: ResumeTemplatesProps) {
               src={template.preview}
               alt={template.name}
               fill
-              className="object-cover"
+              className="object-contain"
               sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
             />
+            {template.status && (
+              <div className="absolute top-2 right-2 bg-primary text-primary-foreground px-2 py-1 rounded text-sm">
+                {template.status}
+              </div>
+            )}
           </div>
           <div className="p-4 space-y-2">
             <h3 className="font-semibold">{template.name}</h3>
             <p className="text-sm text-muted-foreground">{template.description}</p>
             <Button
-              onClick={() => handleTemplateSelect(template.id)}
+              onClick={() => handleTemplateSelect(template.id, template.status)}
               variant="outline"
               className="w-full"
             >
-              Use Template
+              {template.status ? "Coming Soon" : "Use Template"}
             </Button>
           </div>
         </Card>

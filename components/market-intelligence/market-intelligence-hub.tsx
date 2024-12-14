@@ -1,105 +1,194 @@
 "use client"
 
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2, Search, History, TrendingUp, Building, Users, MapPin, LineChart, ArrowUpRight } from "lucide-react";
-import {
-  LineChart as RechartsLineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell
-} from 'recharts';
-import { MarketAnalysis } from '@/types/perplexity';
+import { useEffect, useState } from 'react';
+import { Card, CardContent } from "../ui/card";
+import { Input } from "../ui/input";
+import { Button } from "../ui/button";
+import { Skeleton } from "../ui/skeleton";
+import { Loader2, Search, ChevronDown, ChevronUp, ExternalLink, AlertCircle } from "lucide-react";
+import { toast } from "sonner";
+import { MarketAnalysis, Source } from '../../types/perplexity';
+import { useAuth } from '../../hooks/use-auth';
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
+const SourceCard = ({ source, isActive }: { source: Source; isActive: boolean }) => {
+  return (
+    <Card className={`mb-2 transition-all bg-background ${isActive ? 'ring-2 ring-blue-500' : ''}`}>
+      <CardContent className="p-4">
+        <div className="flex items-start gap-3">
+          <img 
+            src={source.icon} 
+            alt={source.title}
+            className="w-5 h-5 mt-1 rounded-full"
+            onError={(e) => {
+              const url = new URL(source.url);
+              e.currentTarget.src = `${url.protocol}//${url.hostname}/favicon.ico`;
+            }}
+          />
+          <div className="flex-1">
+            <h3 className="font-medium">{source.title}</h3>
+            <p className="text-sm text-muted-foreground">{source.description}</p>
+          </div>
+          <a 
+            href={source.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-500 hover:text-blue-600"
+          >
+            <ExternalLink className="h-4 w-4" />
+          </a>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
 
-export function MarketIntelligenceHub() {
+export function MarketIntelligenceHub(): JSX.Element {
+  const { user, loading: authLoading } = useAuth();
   const [role, setRole] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [marketData, setMarketData] = useState<MarketAnalysis | null>(null);
-  const [searchHistory, setSearchHistory] = useState<string[]>([]);
+  const [showAllSources, setShowAllSources] = useState(false);
+  const [activeCitation, setActiveCitation] = useState<number | null>(null);
+  const [streamedText, setStreamedText] = useState('');
 
+  // Debug log auth state changes
   useEffect(() => {
-    const history = localStorage.getItem('marketSearchHistory');
-    if (history) {
-      setSearchHistory(JSON.parse(history));
-    }
-  }, []);
+    console.log('Market Intelligence Hub auth state:', { userId: user?.id, authLoading });
+  }, [user, authLoading]);
 
-  const updateSearchHistory = (query: string) => {
-    const newHistory = [query, ...searchHistory.filter(h => h !== query)].slice(0, 5);
-    setSearchHistory(newHistory);
-    localStorage.setItem('marketSearchHistory', JSON.stringify(newHistory));
+  const formatSalary = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      maximumFractionDigits: 0
+    }).format(amount);
   };
 
+  const handleCitationClick = (num: number) => {
+    setActiveCitation(num === activeCitation ? null : num);
+    if (!showAllSources) {
+      setShowAllSources(true);
+    }
+    // Scroll the source into view
+    const source = marketData?.sources?.find(s => s.id === num);
+    if (source) {
+      document.getElementById(`source-${num}`)?.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  const renderCitation = (num: number) => (
+    <button
+      onClick={() => handleCitationClick(num)}
+      className={`inline-flex items-center justify-center w-4 h-4 text-xs font-medium rounded-full 
+        ${activeCitation === num ? 'bg-blue-500 text-white' : 'bg-blue-100 text-blue-500 hover:bg-blue-200'}`}
+    >
+      {num}
+    </button>
+  );
+
+  const visibleSources = marketData?.sources 
+    ? (showAllSources ? marketData.sources : marketData.sources.slice(0, 3))
+    : [];
+
   const fetchMarketData = async () => {
-    if (!role) {
-      setError('Please enter a job role');
+    if (!role.trim()) {
+      toast.error('Please enter a job role');
       return;
     }
 
     setLoading(true);
     setError(null);
+    setStreamedText('');
+    setMarketData(null);
 
     try {
+      console.log('Starting market data fetch:', { userId: user?.id, role });
       const response = await fetch(`/api/market-analysis?role=${encodeURIComponent(role)}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch market data');
+      console.log('Market analysis response:', { status: response.status });
+
+      if (response.status === 401) {
+        console.log('Received 401 from API');
+        throw new Error('Session expired. Please sign in again.');
       }
-      const data = await response.json();
-      setMarketData(data);
-      updateSearchHistory(role);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.log('API error response:', errorData);
+        throw new Error(errorData.error || 'Failed to fetch market data');
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('No response body');
+      }
+
+      let accumulatedText = '';
+
+      // Process the stream
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        // Convert the chunk to text
+        const chunk = new TextDecoder().decode(value);
+        const lines = chunk.split('\n');
+
+        // Process each line
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const content = line.slice(6); // Remove 'data: ' prefix
+            
+            if (content === '[DONE]') {
+              // Try to parse the complete accumulated text as JSON
+              try {
+                if (accumulatedText) {
+                  const data = JSON.parse(accumulatedText) as MarketAnalysis;
+                  setMarketData(data);
+                  setShowAllSources(false);
+                  setActiveCitation(null);
+                }
+              } catch (e) {
+                console.error('Failed to parse final JSON:', e);
+              }
+              continue;
+            }
+
+            // Update the streamed text display and accumulate for JSON parsing
+            setStreamedText((prev: string) => prev + content);
+            accumulatedText += content;
+          }
+        }
+      }
     } catch (err) {
-      setError('Failed to fetch market data. Please try again.');
-      console.error('Market data fetch error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch market data';
+      console.error('Market data fetch error:', { error: err, message: errorMessage });
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  const formatSalaryData = () => {
-    if (!marketData) return [];
-    return [
-      { label: 'Minimum', salary: marketData.salary.min },
-      { label: 'Average', salary: marketData.salary.average },
-      { label: 'Maximum', salary: marketData.salary.max }
-    ];
-  };
-
-  const formatWorkModelData = () => {
-    if (!marketData) return [];
-    return [
-      { name: 'Remote', value: marketData.workModel.remote },
-      { name: 'Hybrid', value: marketData.workModel.hybrid },
-      { name: 'On-site', value: marketData.workModel.onsite }
-    ];
-  };
+  // Show loading state while auth is being checked
+  if (authLoading) {
+    console.log('Rendering loading state');
+    return (
+      <div className="container mx-auto p-6 max-w-5xl">
+        <div className="space-y-4">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex flex-col space-y-2">
-        <h1 className="text-3xl font-bold">Market Intelligence Hub</h1>
-        <p className="text-muted-foreground">
-          Analyze market trends, salary data, and work models for any job role
-        </p>
-      </div>
-      
-      <div className="grid gap-6 md:grid-cols-[1fr_200px]">
+    <div className="container mx-auto p-6 max-w-5xl">
+      <div className="space-y-6">
+        {/* Search Section */}
         <div className="space-y-4">
+          <h1 className="text-2xl font-semibold">Market Intelligence Hub</h1>
           <div className="flex gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -108,12 +197,16 @@ export function MarketIntelligenceHub() {
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
                 className="pl-9"
-                onKeyDown={(e) => e.key === 'Enter' && fetchMarketData()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !loading && !authLoading) {
+                    fetchMarketData();
+                  }
+                }}
               />
             </div>
             <Button 
               onClick={fetchMarketData}
-              disabled={loading || !role}
+              disabled={loading || !role || authLoading}
               className="min-w-[100px]"
             >
               {loading ? (
@@ -126,269 +219,219 @@ export function MarketIntelligenceHub() {
               )}
             </Button>
           </div>
-
-          {error && (
-            <Card className="border-destructive">
-              <CardContent className="pt-6">
-                <p className="text-destructive">{error}</p>
-              </CardContent>
-            </Card>
-          )}
-
-          {loading ? (
-            <div className="space-y-4">
-              <Skeleton className="h-[400px] w-full" />
-              <div className="grid gap-4 md:grid-cols-2">
-                <Skeleton className="h-[200px]" />
-                <Skeleton className="h-[200px]" />
-              </div>
-            </div>
-          ) : marketData && (
-            <Tabs defaultValue="overview" className="space-y-4">
-              <TabsList className="grid w-full grid-cols-6">
-                <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="salary">Salary</TabsTrigger>
-                <TabsTrigger value="trends">Trends</TabsTrigger>
-                <TabsTrigger value="industry">Industry</TabsTrigger>
-                <TabsTrigger value="location">Location</TabsTrigger>
-                <TabsTrigger value="outlook">Outlook</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="overview">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <TrendingUp className="h-4 w-4" />
-                        Market Overview
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        <div className="space-y-2">
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Growth Rate</span>
-                            <span className="font-medium">{marketData.trends.growthRate}%</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">YoY Change</span>
-                            <span className={`font-medium ${marketData.trends.yearOverYearChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                              {marketData.trends.yearOverYearChange}%
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Job Openings</span>
-                            <span className="font-medium">{marketData.jobOpenings.toLocaleString()}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <ArrowUpRight className="h-4 w-4" />
-                        Top Specializations
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        {marketData.trends.topSpecializations.map((spec, index) => (
-                          <div key={index} className="flex justify-between items-center">
-                            <span className="text-muted-foreground">{spec.name}</span>
-                            <span className="font-medium text-green-600">+{spec.growth}%</span>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="salary">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Salary Distribution for {role}</CardTitle>
-                    <CardDescription>
-                      Minimum, average, and maximum salary ranges in USD
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-[400px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={formatSalaryData()}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="label" />
-                          <YAxis />
-                          <Tooltip formatter={(value) => `$${value.toLocaleString()}`} />
-                          <Bar dataKey="salary" fill="#8884d8" />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              <TabsContent value="trends">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Market Trends</CardTitle>
-                    <CardDescription>
-                      Growth rates and specialization trends
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-[400px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={marketData.trends.topSpecializations}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="name" />
-                          <YAxis />
-                          <Tooltip formatter={(value) => `${value}%`} />
-                          <Bar dataKey="growth" fill="#82ca9d" />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              <TabsContent value="industry">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Industry Demand</CardTitle>
-                    <CardDescription>
-                      Distribution of job demand across industries
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-[400px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={marketData.industryDemand}
-                            cx="50%"
-                            cy="50%"
-                            labelLine={false}
-                            label={({ name, value }) => `${name} ${value}%`}
-                            outerRadius={150}
-                            fill="#8884d8"
-                            dataKey="demand"
-                          >
-                            {marketData.industryDemand.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <Tooltip />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              <TabsContent value="location">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Geographical Distribution</CardTitle>
-                    <CardDescription>
-                      Job concentration across major cities
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="h-[400px]">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={marketData.geographicalHotspots}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="city" />
-                          <YAxis />
-                          <Tooltip formatter={(value) => `${value}%`} />
-                          <Bar dataKey="jobShare" fill="#8884d8" />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              <TabsContent value="outlook">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <LineChart className="h-4 w-4" />
-                        Market Outlook
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        <div className="flex justify-between items-center">
-                          <span className="text-muted-foreground">Projected Growth</span>
-                          <span className="font-medium text-green-600">
-                            +{marketData.marketOutlook.projectedGrowth}%
-                          </span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <TrendingUp className="h-4 w-4" />
-                        Key Trends
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <ul className="space-y-2">
-                        {marketData.marketOutlook.keyTrends.map((trend, index) => (
-                          <li key={index} className="flex items-center gap-2">
-                            <ArrowUpRight className="h-4 w-4 text-green-600" />
-                            <span>{trend}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </CardContent>
-                  </Card>
-                </div>
-              </TabsContent>
-            </Tabs>
-          )}
         </div>
 
-        {/* Search History Sidebar */}
-        <Card className="h-fit">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <History className="h-4 w-4" />
-              Recent Searches
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ScrollArea className="h-[200px]">
-              {searchHistory.length > 0 ? (
-                <div className="space-y-2">
-                  {searchHistory.map((query, i) => (
+        {error && (
+          <Card className="p-4 border-destructive">
+            <div className="flex items-center gap-2 text-destructive">
+              <AlertCircle className="h-4 w-4" />
+              <p>{error}</p>
+            </div>
+          </Card>
+        )}
+
+        {loading && !marketData && (
+          <div className="space-y-4">
+            <Skeleton className="h-[200px] w-full" />
+            <Skeleton className="h-[300px] w-full" />
+          </div>
+        )}
+
+        {loading && streamedText && (
+          <div className="prose prose-slate max-w-none">
+            <pre className="whitespace-pre-wrap font-mono text-xs opacity-50">
+              {streamedText}
+            </pre>
+          </div>
+        )}
+
+        {marketData && (
+          <div className="space-y-6">
+            {/* Sources */}
+            <div className="relative z-10">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between bg-background">
+                  <span className="text-sm font-medium">Sources</span>
+                  {marketData.sources && marketData.sources.length > 3 && (
                     <Button
-                      key={i}
                       variant="ghost"
-                      className="w-full justify-start text-left"
-                      onClick={() => {
-                        setRole(query);
-                        fetchMarketData();
-                      }}
+                      size="sm"
+                      onClick={() => setShowAllSources(!showAllSources)}
+                      className="text-blue-500 hover:text-blue-600"
                     >
-                      {query}
+                      {showAllSources ? (
+                        <>
+                          <ChevronUp className="h-4 w-4 mr-1" />
+                          Hide sources
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown className="h-4 w-4 mr-1" />
+                          View all {marketData.sources.length} sources
+                        </>
+                      )}
                     </Button>
+                  )}
+                </div>
+                <div className="space-y-2 relative bg-background">
+                  {visibleSources.map((source) => (
+                    <div id={`source-${source.id}`} key={source.id} className="relative">
+                      <SourceCard source={source} isActive={activeCitation === source.id} />
+                    </div>
                   ))}
                 </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">No recent searches</p>
+              </div>
+            </div>
+
+            {/* Market Analysis Content */}
+            <div className="prose prose-slate max-w-none relative z-0">
+              {marketData.overview && (
+                <p className="text-lg leading-relaxed">{marketData.overview}</p>
               )}
-            </ScrollArea>
-          </CardContent>
-        </Card>
+
+              {marketData.demandAndOpportunities && (
+                <>
+                  <h3 className="text-xl font-semibold mt-6 mb-3">Demand and Opportunities</h3>
+                  <p className="leading-relaxed">
+                    {marketData.demandAndOpportunities.content}
+                    {marketData.demandAndOpportunities.citations?.map((citation, index) => (
+                      <span key={index} className="ml-1">{renderCitation(citation)}</span>
+                    ))}
+                  </p>
+                </>
+              )}
+
+              {marketData.salaryRange && (
+                <>
+                  <h3 className="text-xl font-semibold mt-6 mb-3">Salary Range</h3>
+                  {marketData.salaryRange.content && (
+                    <p className="leading-relaxed mb-4">
+                      {marketData.salaryRange.content}
+                    </p>
+                  )}
+                  <ul className="space-y-3 list-none pl-0">
+                    {marketData.salaryRange.rates?.hourlyRate && (
+                      <li className="flex items-start">
+                        <span className="mr-2">•</span>
+                        <span>
+                          Average hourly rate: {formatSalary(marketData.salaryRange.rates.hourlyRate.average)} 
+                          (ranging from {formatSalary(marketData.salaryRange.rates.hourlyRate.min)} to {formatSalary(marketData.salaryRange.rates.hourlyRate.max)})
+                          <span className="ml-1">{renderCitation(marketData.salaryRange.rates.hourlyRate.citation)}</span>
+                        </span>
+                      </li>
+                    )}
+                    {marketData.salaryRange.rates?.annualRange && (
+                      <li className="flex items-start">
+                        <span className="mr-2">•</span>
+                        <span>
+                          Annual salary range: {formatSalary(marketData.salaryRange.rates.annualRange.min)} to {formatSalary(marketData.salaryRange.rates.annualRange.max)}, 
+                          with the majority falling between {formatSalary(marketData.salaryRange.rates.annualRange.commonMin)} and {formatSalary(marketData.salaryRange.rates.annualRange.commonMax)}
+                          <span className="ml-1">{renderCitation(marketData.salaryRange.rates.annualRange.citation)}</span>
+                        </span>
+                      </li>
+                    )}
+                    {marketData.salaryRange.rates?.seniorRange && (
+                      <li className="flex items-start">
+                        <span className="mr-2">•</span>
+                        <span>
+                          Senior developers ({marketData.salaryRange.rates.seniorRange.yearsExperience}+ years experience): 
+                          {formatSalary(marketData.salaryRange.rates.seniorRange.min)} to {formatSalary(marketData.salaryRange.rates.seniorRange.max)}
+                          <span className="ml-1">{renderCitation(marketData.salaryRange.rates.seniorRange.citation)}</span>
+                        </span>
+                      </li>
+                    )}
+                  </ul>
+
+                  {marketData.salaryRange.locationFactors && (
+                    <p className="leading-relaxed mt-4">
+                      {marketData.salaryRange.locationFactors.content}
+                      <span className="ml-1">{renderCitation(marketData.salaryRange.locationFactors.citation)}</span>
+                    </p>
+                  )}
+                  {marketData.salaryRange.industryFactors && (
+                    <p className="leading-relaxed">
+                      {marketData.salaryRange.industryFactors.content}
+                      <span className="ml-1">{renderCitation(marketData.salaryRange.industryFactors.citation)}</span>
+                    </p>
+                  )}
+                </>
+              )}
+
+              {marketData.skillsInDemand && (
+                <>
+                  <h3 className="text-xl font-semibold mt-6 mb-3">Skills in Demand</h3>
+                  {marketData.skillsInDemand.content && (
+                    <p className="leading-relaxed mb-4">{marketData.skillsInDemand.content}</p>
+                  )}
+                  <ul className="space-y-3 list-none pl-0">
+                    {marketData.skillsInDemand.skills?.core?.map((skill, index) => (
+                      <li key={index} className="flex items-start">
+                        <span className="mr-2">•</span>
+                        {skill}
+                      </li>
+                    ))}
+                    {marketData.skillsInDemand.skills?.technical?.map((skill, index) => (
+                      <li key={index} className="flex items-start">
+                        <span className="mr-2">•</span>
+                        <span>
+                          {skill.skill} ({skill.demandPercentage}% of job postings)
+                          <span className="ml-1">{renderCitation(skill.citation)}</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+
+              {marketData.careerGrowth && (
+                <>
+                  <h3 className="text-xl font-semibold mt-6 mb-3">Career Growth</h3>
+                  {marketData.careerGrowth.content && (
+                    <p className="leading-relaxed mb-4">{marketData.careerGrowth.content}</p>
+                  )}
+                  <ul className="space-y-3 list-none pl-0">
+                    {marketData.careerGrowth.paths?.map((path, index) => (
+                      <li key={index} className="flex items-start">
+                        <span className="mr-2">•</span>
+                        <span>
+                          {path.role}: {formatSalary(path.salary)}, {path.description}
+                          <span className="ml-1">{renderCitation(path.citation)}</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+
+              {marketData.marketOutlook && (
+                <>
+                  <h3 className="text-xl font-semibold mt-6 mb-3">Market Outlook</h3>
+                  <p className="leading-relaxed mb-4">
+                    {marketData.marketOutlook.content}
+                    <span className="ml-1">{renderCitation(marketData.marketOutlook.citation)}</span>
+                  </p>
+                  <ul className="space-y-3 list-none pl-0">
+                    {marketData.marketOutlook.keyPoints?.map((point, index) => (
+                      <li key={index} className="flex items-start">
+                        <span className="mr-2">•</span>
+                        {point}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+
+              {marketData.certifications && (
+                <div className="mt-6">
+                  <p className="leading-relaxed">
+                    {marketData.certifications.content}
+                    <span className="ml-1">{renderCitation(marketData.certifications.citation)}</span>
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
