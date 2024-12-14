@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { User } from '@supabase/supabase-js';
 import { createClient } from '../lib/supabase/client';
+import { useRouter } from 'next/navigation';
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
+  const router = useRouter();
 
   useEffect(() => {
     let mounted = true;
@@ -56,6 +58,12 @@ export function useAuth() {
     setLoading(true);
     try {
       await supabase.auth.signOut();
+      // Clear any auth state
+      setUser(null);
+      // Redirect to landing page
+      router.push('/');
+      // Force a page refresh to clear any cached data
+      window.location.reload();
     } catch (error) {
       console.error('Error signing out:', error);
     } finally {
