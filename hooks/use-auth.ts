@@ -1,84 +1,55 @@
-import { useEffect, useState } from 'react';
-import { User } from '@supabase/supabase-js';
-import { createClient } from '../lib/supabase/client';
+'use client';
+
+import { useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuthContext } from '@/components/auth/auth-provider';
+import { signIn as signInAction, signOut as signOutAction, signUp as signUpAction, signInWithOAuth as signInWithOAuthAction } from '@/app/auth/actions';
 
 export function useAuth() {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const supabase = createClient();
   const router = useRouter();
+  const { user, session, loading } = useAuthContext();
 
-  useEffect(() => {
-    let mounted = true;
+  const signUp = useCallback(
+    async (email: string, password: string) => {
+      const formData = new FormData();
+      formData.append('email', email);
+      formData.append('password', password);
+      const result = await signUpAction(formData);
+      if (result?.error) throw new Error(result.error);
+    },
+    []
+  );
 
-    async function getInitialSession() {
-      try {
-        console.log('Getting initial session...');
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('Error getting session:', error);
-          return;
-        }
+  const signIn = useCallback(
+    async (email: string, password: string) => {
+      const formData = new FormData();
+      formData.append('email', email);
+      formData.append('password', password);
+      const result = await signInAction(formData);
+      if (result?.error) throw new Error(result.error);
+    },
+    []
+  );
 
-        if (mounted) {
-          console.log('Setting initial user:', session?.user?.id);
-          setUser(session?.user ?? null);
-          setLoading(false);
-        }
-      } catch (error) {
-        console.error('Error in getInitialSession:', error);
-        if (mounted) {
-          setLoading(false);
-        }
-      }
-    }
-
-    getInitialSession();
-
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      console.log('Auth state changed:', { event: _event, userId: session?.user?.id });
-      if (mounted) {
-        setUser(session?.user ?? null);
-        // Don't set loading false here as it might cause flicker
-      }
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
+  const signOut = useCallback(async () => {
+    await signOutAction();
   }, []);
 
-  const signOut = async () => {
-    setLoading(true);
-    try {
-      await supabase.auth.signOut();
-      // Clear any auth state
-      setUser(null);
-      // Redirect to landing page
-      router.push('/');
-      // Force a page refresh to clear any cached data
-      window.location.reload();
-    } catch (error) {
-      console.error('Error signing out:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Debug log whenever user or loading state changes
-  useEffect(() => {
-    console.log('Auth state updated:', { userId: user?.id, loading });
-  }, [user, loading]);
+  const signInWithOAuth = useCallback(
+    async (provider: 'github' | 'google') => {
+      const result = await signInWithOAuthAction(provider);
+      if (result?.error) throw new Error(result.error);
+    },
+    []
+  );
 
   return {
     user,
+    session,
     loading,
+    signUp,
+    signIn,
     signOut,
+    signInWithOAuth,
   };
 }
