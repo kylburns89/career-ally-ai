@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
 import { User, Session, AuthChangeEvent } from '@supabase/supabase-js';
+import { useRouter } from 'next/navigation';
 
 interface AuthContextType {
   user: User | null;
@@ -23,30 +24,68 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
-    // Get initial authenticated user state
-    supabase.auth.getUser().then(({ data: { user } }: { data: { user: User | null } }) => {
-      setUser(user);
-      // We still need getSession to get the full session object
-      // but we're using getUser first to verify the user's authenticity
-      supabase.auth.getSession().then(({ data: { session } }: { data: { session: Session | null } }) => {
-        setSession(session);
+    // Initialize auth state
+    const initializeAuth = async () => {
+      try {
+        // Get session first
+        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        
+        if (initialSession) {
+          // If we have a session, verify the user
+          const { data: { user: verifiedUser } } = await supabase.auth.getUser();
+          setUser(verifiedUser);
+          setSession(initialSession);
+        } else {
+          // No session, clear state
+          setUser(null);
+          setSession(null);
+        }
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+        // On error, clear state
+        setUser(null);
+        setSession(null);
+      } finally {
         setLoading(false);
-      });
-    });
+      }
+    };
+
+    initializeAuth();
 
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event: AuthChangeEvent, session: Session | null) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+    } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, currentSession: Session | null) => {
+      console.log('Auth state change:', event);
+      
+      if (event === 'SIGNED_IN') {
+        setSession(currentSession);
+        setUser(currentSession?.user ?? null);
+        // Force a router refresh to update server state
+        router.refresh();
+      } else if (event === 'SIGNED_OUT') {
+        setSession(null);
+        setUser(null);
+        // Clear any cached data and refresh
+        router.refresh();
+      } else if (event === 'TOKEN_REFRESHED') {
+        setSession(currentSession);
+        // Verify user is still valid
+        const { data: { user: verifiedUser } } = await supabase.auth.getUser();
+        setUser(verifiedUser);
+      }
+      
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
-  }, []);
+    // Cleanup subscription
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [router]);
 
   return (
     <AuthContext.Provider value={{ user, session, loading }}>

@@ -14,22 +14,43 @@ export function createClient() {
         },
         set(name: string, value: string, options: CookieOptions) {
           try {
-            cookieStore.set({ name, value, ...options })
+            // Ensure cookies work in production
+            cookieStore.set({
+              name,
+              value,
+              ...options,
+              // Force secure in production
+              secure: process.env.NODE_ENV === 'production' ? true : options.secure,
+              // Ensure same-site policy
+              sameSite: 'lax',
+              // Set path to root to ensure availability across all routes
+              path: '/',
+              // Set domain based on environment
+              ...(process.env.NODE_ENV === 'production' && process.env.NEXT_PUBLIC_SITE_URL
+                ? { domain: new URL(process.env.NEXT_PUBLIC_SITE_URL).hostname }
+                : {})
+            })
           } catch (error) {
-            // Handle cookie errors in development
-            if (process.env.NODE_ENV === 'development') {
-              console.warn('Error setting cookie:', error)
-            }
+            console.warn('Error setting cookie:', error)
           }
         },
         remove(name: string, options: CookieOptions) {
           try {
-            cookieStore.set({ name, value: '', ...options })
+            // Use same options as set to ensure proper removal
+            cookieStore.set({
+              name,
+              value: '',
+              ...options,
+              secure: process.env.NODE_ENV === 'production' ? true : options.secure,
+              sameSite: 'lax',
+              path: '/',
+              ...(process.env.NODE_ENV === 'production' && process.env.NEXT_PUBLIC_SITE_URL
+                ? { domain: new URL(process.env.NEXT_PUBLIC_SITE_URL).hostname }
+                : {}),
+              maxAge: 0
+            })
           } catch (error) {
-            // Handle cookie errors in development
-            if (process.env.NODE_ENV === 'development') {
-              console.warn('Error removing cookie:', error)
-            }
+            console.warn('Error removing cookie:', error)
           }
         },
       },
