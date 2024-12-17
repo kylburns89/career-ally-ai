@@ -9,21 +9,27 @@ import { Loader2, Search, ChevronDown, ChevronUp, ExternalLink, AlertCircle } fr
 import { toast } from "sonner";
 import { MarketAnalysis, Source } from '../../types/perplexity';
 import { useAuth } from '../../hooks/use-auth';
+import Image from 'next/image';
 
 const SourceCard = ({ source, isActive }: { source: Source; isActive: boolean }) => {
   return (
     <Card className={`mb-2 transition-all bg-background ${isActive ? 'ring-2 ring-blue-500' : ''}`}>
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
-          <img 
-            src={source.icon} 
-            alt={source.title}
-            className="w-5 h-5 mt-1 rounded-full"
-            onError={(e) => {
-              const url = new URL(source.url);
-              e.currentTarget.src = `${url.protocol}//${url.hostname}/favicon.ico`;
-            }}
-          />
+          <div className="relative w-5 h-5">
+            <Image 
+              src={source.icon} 
+              alt={source.title}
+              className="rounded-full"
+              width={20}
+              height={20}
+              onError={(e) => {
+                const url = new URL(source.url);
+                // @ts-ignore - TypeScript doesn't know about HTMLImageElement's src property
+                e.currentTarget.src = `${url.protocol}//${url.hostname}/favicon.ico`;
+              }}
+            />
+          </div>
           <div className="flex-1">
             <h3 className="font-medium">{source.title}</h3>
             <p className="text-sm text-muted-foreground">{source.description}</p>

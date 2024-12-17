@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
-import { GripVertical, Layout } from "lucide-react";
+import { GripVertical, Layout, Save } from "lucide-react";
 
 interface Column {
   id: string;
@@ -28,8 +28,10 @@ const SECTION_NAMES: { [key: string]: string } = {
   references: "References"
 };
 
+// Define which sections belong in the sidebar
+const SIDEBAR_SECTIONS = ["skills", "interests", "languages", "awards", "publications"];
+
 export function ResumeLayoutManager({ sections, onChange }: LayoutManagerProps) {
-  // Initialize columns with default layout
   const [columns, setColumns] = useState<{ [key: string]: Column }>({
     main: {
       id: "main",
@@ -43,20 +45,29 @@ export function ResumeLayoutManager({ sections, onChange }: LayoutManagerProps) 
     }
   });
 
-  // Update columns when sections prop changes
+  const [unsavedChanges, setUnsavedChanges] = useState(false);
+
+  // Update columns whenever sections change
   useEffect(() => {
+    if (!sections || sections.length === 0) return;
+
+    const mainSections = sections.filter(s => !SIDEBAR_SECTIONS.includes(s));
+    const sidebarSections = sections.filter(s => SIDEBAR_SECTIONS.includes(s));
+    
     setColumns({
       main: {
         id: "main",
         title: "Main Content",
-        sectionIds: sections.filter(s => !["skills", "interests", "languages", "awards", "publications"].includes(s))
+        sectionIds: mainSections
       },
       sidebar: {
         id: "sidebar",
         title: "Sidebar Content",
-        sectionIds: sections.filter(s => ["skills", "interests", "languages", "awards", "publications"].includes(s))
+        sectionIds: sidebarSections
       }
     });
+    
+    setUnsavedChanges(false);
   }, [sections]);
 
   const onDragEnd = (result: DropResult) => {
@@ -80,24 +91,16 @@ export function ResumeLayoutManager({ sections, onChange }: LayoutManagerProps) 
       const [removed] = newSectionIds.splice(source.index, 1);
       newSectionIds.splice(destination.index, 0, removed);
 
-      const newColumn = {
-        ...sourceColumn,
-        sectionIds: newSectionIds,
-      };
-
       const newColumns = {
         ...columns,
-        [newColumn.id]: newColumn,
+        [sourceColumn.id]: {
+          ...sourceColumn,
+          sectionIds: newSectionIds,
+        }
       };
 
       setColumns(newColumns);
-      
-      // Immediately update parent with new section order
-      const newSections = [
-        ...newColumns.main.sectionIds,
-        ...newColumns.sidebar.sectionIds
-      ];
-      onChange(newSections);
+      setUnsavedChanges(true);
     } else {
       // Moving between columns
       const sourceSectionIds = Array.from(sourceColumn.sectionIds);
@@ -114,29 +117,45 @@ export function ResumeLayoutManager({ sections, onChange }: LayoutManagerProps) 
         [destColumn.id]: {
           ...destColumn,
           sectionIds: destSectionIds,
-        },
+        }
       };
 
       setColumns(newColumns);
-
-      // Immediately update parent with new section order
-      const newSections = [
-        ...newColumns.main.sectionIds,
-        ...newColumns.sidebar.sectionIds
-      ];
-      onChange(newSections);
+      setUnsavedChanges(true);
     }
+  };
+
+  const handleSaveLayout = () => {
+    const newSections = [
+      ...columns.main.sectionIds,
+      ...columns.sidebar.sectionIds
+    ];
+    onChange(newSections);
+    setUnsavedChanges(false);
   };
 
   return (
     <div className="bg-card rounded-lg shadow-sm border p-6 space-y-4">
-      <div className="flex items-center gap-2 pb-2 border-b border-border">
-        <Layout className="h-5 w-5 text-foreground" />
-        <h3 className="text-lg font-semibold text-foreground">Layout Manager</h3>
+      <div className="flex items-center justify-between pb-2 border-b border-border">
+        <div className="flex items-center gap-2">
+          <Layout className="h-5 w-5 text-foreground" />
+          <h3 className="text-lg font-semibold text-foreground">Layout Manager</h3>
+        </div>
+        <button
+          onClick={handleSaveLayout}
+          className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-md transition-colors ${
+            unsavedChanges 
+              ? "bg-primary text-primary-foreground hover:bg-primary/90" 
+              : "bg-secondary text-secondary-foreground hover:bg-secondary/90"
+          }`}
+        >
+          <Save className="h-4 w-4" />
+          {unsavedChanges ? "Save Changes" : "Save Layout"}
+        </button>
       </div>
       
       <p className="text-sm text-muted-foreground">
-        Drag and drop sections to reorganize your resume layout. The preview will update automatically.
+        Drag and drop sections to reorganize your resume layout. The layout will be saved when you click the save button.
       </p>
 
       <DragDropContext onDragEnd={onDragEnd}>

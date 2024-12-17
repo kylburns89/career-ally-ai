@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { listFactors, unenrollFactor } from '@/lib/auth'
+import { listFactors } from '@/lib/auth'
+import { unenrollMFA } from '@/app/auth/actions'
 import type { FactorList } from '@/types/auth'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { AlertTriangle, CheckCircle } from 'lucide-react'
@@ -20,7 +21,7 @@ export function MFAManagement() {
   const loadFactors = async () => {
     try {
       const data = await listFactors()
-      setFactors(data as FactorList)
+      setFactors(data)
     } catch (err) {
       setError('Failed to load MFA factors')
       console.error('Error loading factors:', err)
@@ -31,9 +32,10 @@ export function MFAManagement() {
 
   const handleUnenroll = async (factorId: string) => {
     try {
-      await unenrollFactor(factorId)
+      const { error: unenrollError } = await unenrollMFA(factorId)
+      if (unenrollError) throw new Error(unenrollError)
       await loadFactors() // Refresh the list
-    } catch (err) {
+    } catch (err: any) {
       setError('Failed to remove factor')
       console.error('Error removing factor:', err)
     }

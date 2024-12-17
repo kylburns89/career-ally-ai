@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { verifyTOTP } from '@/lib/auth'
+import { verifyMFA } from '@/app/auth/actions'
 import type { FactorList } from '@/types/auth'
 
 interface MFAChallengeProps {
@@ -32,9 +32,10 @@ export function MFAChallenge({ factors, redirectTo = '/' }: MFAChallengeProps) {
     setLoading(true)
     try {
       if (!factor) throw new Error('No TOTP factor available')
-      await verifyTOTP(factor.id, verificationCode.trim())
+      const { error: verifyError } = await verifyMFA(factor.id, verificationCode.trim())
+      if (verifyError) throw new Error(verifyError)
       router.push(redirectTo)
-    } catch (err) {
+    } catch (err: any) {
       setError('Invalid verification code. Please try again.')
       console.error('MFA verification error:', err)
     } finally {

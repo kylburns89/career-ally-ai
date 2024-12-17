@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import { toast } from "sonner";
 import { Plus, Trash2, Edit2, Check, X } from "lucide-react";
 import { format } from "date-fns";
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import Image from 'next/image';
 import { ResumeHeader } from "./sections/resume-header";
 import { ResumeSummary } from "./sections/resume-summary";
 import { ResumeExperience } from "./sections/resume-experience";
@@ -56,6 +57,30 @@ const TEMPLATES = [
   }
 ] as const;
 
+// Debounce helper function
+function debounce<T extends (...args: any[]) => any>(
+  func: T,
+  wait: number
+): (...args: Parameters<T>) => void {
+  let timeout: NodeJS.Timeout;
+  return (...args: Parameters<T>) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
+}
+
+// Ensure sections are never undefined
+function getDefaultSections(): string[] {
+  return [
+    "summary",
+    "experience",
+    "education",
+    "skills",
+    "projects",
+    "certifications",
+  ];
+}
+
 export function ResumeBuilder({
   activeResume,
   setActiveResume,
@@ -68,40 +93,148 @@ export function ResumeBuilder({
   const [newSkill, setNewSkill] = useState("");
   const [editingName, setEditingName] = useState<string | null>(null);
   const [tempName, setTempName] = useState("");
-  const [sections, setSections] = useState([
-    "summary",
-    "experience",
-    "education",
-    "skills",
-    "projects",
-    "certifications",
-  ]);
-
+  const [isSaving, setIsSaving] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  
+  // Initialize with default sections
+  const lastSavedSections = useRef<string[]>(getDefaultSections());
+  
   const supabase = createClientComponentClient<Database>();
 
   const form = useForm<ResumeFormData>({
     defaultValues: {
       ...defaultFormValues,
-      skills: [],
-      sections: sections,
-      template: selectedTemplate,
-      ...(activeResume?.content || {})
+      sections: getDefaultSections()
     }
   });
 
+  // Update form and state when active resume changes
   useEffect(() => {
     if (activeResume?.content) {
-      const { skills: resumeSkills, sections: resumeSections, template } = activeResume.content;
-      
+      const { skills: resumeSkills, template, sections } = activeResume.content;
       setSkills(resumeSkills || []);
-      setSections(resumeSections || sections);
       setSelectedTemplate(template || "professional");
-
-      form.reset(activeResume.content);
+      const currentSections = sections || getDefaultSections();
+      
+      // Only update sections on initial load or when switching resumes
+      if (isInitialLoad || lastSavedSections.current.join(',') !== currentSections.join(',')) {
+        lastSavedSections.current = currentSections;
+        form.reset({
+          ...activeResume.content,
+          sections: currentSections
+        });
+      } else {
+        // Preserve current sections order but update other fields
+        const currentFormSections = form.getValues("sections");
+        form.reset({
+          ...activeResume.content,
+          sections: currentFormSections
+        });
+      }
+    } else {
+      setSkills([]);
+      setSelectedTemplate("professional");
+      const defaultSections = getDefaultSections();
+      lastSavedSections.current = defaultSections;
+      form.reset({
+        ...defaultFormValues,
+        sections: defaultSections
+      });
     }
-  }, [activeResume, sections, form]);
+    setIsInitialLoad(false);
+  }, [activeResume, form, isInitialLoad]);
+
+  // Debounced save function
+  const debouncedSave = useCallback(
+    (resumeId: string, formData: ResumeFormData) => {
+      const save = async () => {
+        try {
+          setIsSaving(true);
+          const dbContent = formToDbFormat({
+            ...formData,
+            sections: formData.sections || getDefaultSections()
+          });
+          
+          await updateResume(resumeId, activeResume?.name || '', dbContent);
+          
+          if (setActiveResume && activeResume) {
+            setActiveResume({
+              ...activeResume,
+              content: dbContent,
+            });
+          }
+
+          lastSavedSections.current = formData.sections || getDefaultSections();
+          await refreshResumes();
+        } catch (error) {
+          console.error('Error saving resume:', error);
+          toast.error('Failed to save changes. Please try again.');
+          
+          // Revert form state to last known good state
+          form.setValue("sections", lastSavedSections.current);
+        } finally {
+          setIsSaving(false);
+        }
+      };
+      
+      const timeoutId = setTimeout(save, 1000);
+      return () => clearTimeout(timeoutId);
+    },
+    [updateResume, setActiveResume, activeResume, refreshResumes, form]
+  );
+
+  const handleSectionsChange = useCallback(async (newSections: string[]) => {
+    if (!activeResume?.id) return;
+
+    try {
+      // Update form state immediately for responsive UI
+      form.setValue("sections", newSections, { 
+        shouldDirty: true,
+        shouldTouch: true,
+        shouldValidate: true 
+      });
+
+      // Get current form values
+      const formData = form.getValues();
+      const normalizedFormData: ResumeFormData = {
+        ...formData,
+        skills,
+        sections: newSections,
+        template: selectedTemplate,
+        projects: formData.projects?.map((project: ProjectFormData) => ({
+          ...project,
+          technologies: normalizeTechnologies(project.technologies),
+        })) || [],
+        certifications: formData.certifications || [],
+      };
+
+      // Save immediately without debounce for layout changes
+      const dbContent = formToDbFormat(normalizedFormData);
+      await updateResume(activeResume.id, activeResume.name, dbContent);
+
+      if (setActiveResume) {
+        setActiveResume({
+          ...activeResume,
+          content: dbContent,
+        });
+      }
+
+      // Update last saved sections
+      lastSavedSections.current = newSections;
+
+      await refreshResumes();
+      toast.success("Layout updated successfully");
+    } catch (error) {
+      console.error('Error handling section changes:', error);
+      toast.error('Failed to update sections');
+      
+      // Revert to last known good state
+      form.setValue("sections", lastSavedSections.current);
+    }
+  }, [form, activeResume, skills, selectedTemplate, updateResume, setActiveResume, refreshResumes]);
 
   const handleCreateResume = async () => {
+    const defaultSections = getDefaultSections();
     const newResume: ResumeContent = {
       personalInfo: {
         fullName: "",
@@ -116,14 +249,7 @@ export function ResumeBuilder({
       projects: [],
       certifications: [],
       template: "professional",
-      sections: [
-        "summary",
-        "experience",
-        "education",
-        "skills",
-        "projects",
-        "certifications",
-      ],
+      sections: defaultSections,
     };
 
     try {
@@ -139,7 +265,7 @@ export function ResumeBuilder({
         .from('resumes')
         .insert({
           user_id: session.user.id,
-          name: `Resume ${format(new Date(), 'MM/dd/yyyy')}`,
+          name: "Resume " + format(new Date(), 'MM/dd/yyyy'),
           content: dbContent,
         })
         .select()
@@ -162,8 +288,8 @@ export function ResumeBuilder({
       
       form.reset(newResume);
       setSkills([]);
-      setSections(newResume.sections || sections);
-      setSelectedTemplate(newResume.template);
+      setSelectedTemplate("professional");
+      lastSavedSections.current = defaultSections;
 
       await refreshResumes();
 
@@ -200,14 +326,7 @@ export function ResumeBuilder({
         });
       }
 
-      const updatedResumes = resumes.map(resume => 
-        resume.id === resumeId 
-          ? { ...resume, name: tempName }
-          : resume
-      );
-      
       await refreshResumes();
-
       setEditingName(null);
       toast.success("Resume name updated successfully");
     } catch (error) {
@@ -243,19 +362,19 @@ export function ResumeBuilder({
     }
 
     try {
-      const response = await fetch(`/api/resumes/export/pdf/${activeResume.id}`, {
+      const response = await fetch("/api/resumes/export/pdf/" + activeResume.id, {
         credentials: 'include',
       });
       
       if (!response.ok) {
-        throw new Error(`Export failed with status: ${response.status}`);
+        throw new Error("Export failed with status: " + response.status);
       }
 
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${activeResume.name || 'resume'}.pdf`;
+      a.download = (activeResume.name || 'resume') + '.pdf';
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -268,10 +387,63 @@ export function ResumeBuilder({
     }
   };
 
-  const handleSectionsChange = useCallback((newSections: string[]) => {
-    setSections(newSections);
-    form.setValue("sections", newSections, { shouldDirty: true });
-  }, [form]);
+  const addSkill = () => {
+    if (newSkill.trim()) {
+      const updatedSkills = [...skills, newSkill.trim()];
+      setSkills(updatedSkills);
+      setNewSkill("");
+      form.setValue("skills", updatedSkills);
+    }
+  };
+
+  const removeSkill = (index: number) => {
+    const updatedSkills = skills.filter((_, i) => i !== index);
+    setSkills(updatedSkills);
+    form.setValue("skills", updatedSkills);
+  };
+
+  const onSubmit = async (formData: ResumeFormData) => {
+    if (!activeResume?.id) {
+      toast.error("No active resume selected");
+      return;
+    }
+
+    try {
+      const normalizedFormData: ResumeFormData = {
+        ...formData,
+        skills,
+        sections: formData.sections || getDefaultSections(),
+        template: selectedTemplate,
+        projects: formData.projects?.map((project: ProjectFormData) => ({
+          ...project,
+          technologies: normalizeTechnologies(project.technologies),
+        })) || [],
+        certifications: formData.certifications || [],
+      };
+
+      const dbContent = formToDbFormat(normalizedFormData);
+
+      await updateResume(activeResume.id, activeResume.name, dbContent);
+
+      if (setActiveResume) {
+        setActiveResume({
+          ...activeResume,
+          content: dbContent,
+        });
+      }
+
+      if (onSave) {
+        onSave(formData);
+      }
+
+      await refreshResumes();
+
+      toast.success("Resume saved successfully");
+    } catch (error) {
+      console.error('Error saving resume:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to save resume');
+    }
+  };
 
   const renderSection = (sectionId: string) => {
     switch (sectionId) {
@@ -348,64 +520,6 @@ export function ResumeBuilder({
     }
   };
 
-  const addSkill = () => {
-    if (newSkill.trim()) {
-      const updatedSkills = [...skills, newSkill.trim()];
-      setSkills(updatedSkills);
-      setNewSkill("");
-      form.setValue("skills", updatedSkills);
-    }
-  };
-
-  const removeSkill = (index: number) => {
-    const updatedSkills = skills.filter((_, i) => i !== index);
-    setSkills(updatedSkills);
-    form.setValue("skills", updatedSkills);
-  };
-
-  const onSubmit = async (formData: ResumeFormData) => {
-    if (!activeResume?.id) {
-      toast.error("No active resume selected");
-      return;
-    }
-
-    try {
-      const normalizedFormData: ResumeFormData = {
-        ...formData,
-        skills,
-        sections,
-        template: selectedTemplate,
-        projects: formData.projects?.map((project: ProjectFormData) => ({
-          ...project,
-          technologies: normalizeTechnologies(project.technologies),
-        })) || [],
-        certifications: formData.certifications || [],
-      };
-
-      const dbContent = formToDbFormat(normalizedFormData);
-
-      await updateResume(activeResume.id, activeResume.name, dbContent);
-
-      if (setActiveResume) {
-        setActiveResume({
-          ...activeResume,
-          content: dbContent,
-        });
-      }
-
-      if (onSave) {
-        onSave(formData);
-      }
-
-      await refreshResumes();
-
-      toast.success("Resume saved successfully");
-    } catch (error) {
-      console.error('Error saving resume:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to save resume');
-    }
-  };
-
   return (
     <div className="container mx-auto py-8">
       <div className="mb-8">
@@ -424,9 +538,8 @@ export function ResumeBuilder({
             <div key={resume.id} className="relative flex-shrink-0 pt-3 pr-3">
               <button
                 onClick={() => setActiveResume?.(resume)}
-                className={`w-[200px] p-4 rounded-lg border-2 transition-all hover:border-primary ${
-                  activeResume?.id === resume.id ? 'border-primary ring-2 ring-primary ring-offset-2' : 'border-border'
-                }`}
+                className={"w-[200px] p-4 rounded-lg border-2 transition-all hover:border-primary " + 
+                  (activeResume?.id === resume.id ? 'border-primary ring-2 ring-primary ring-offset-2' : 'border-border')}
               >
                 {editingName === resume.id ? (
                   <div className="flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
@@ -495,7 +608,10 @@ export function ResumeBuilder({
           <FormProvider {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <div className="bg-card rounded-lg shadow-sm border">
-                <ResumeLayoutManager sections={sections} onChange={handleSectionsChange} />
+                <ResumeLayoutManager 
+                  sections={form.getValues("sections") || getDefaultSections()} 
+                  onChange={handleSectionsChange} 
+                />
               </div>
 
               <div className="bg-card rounded-lg shadow-sm border p-6">
@@ -503,7 +619,7 @@ export function ResumeBuilder({
               </div>
 
               <div className="space-y-6">
-                {sections.map((sectionId) => (
+                {(form.getValues("sections") || getDefaultSections()).map((sectionId) => (
                   <div key={sectionId} className="bg-card rounded-lg shadow-sm border p-6">
                     {renderSection(sectionId)}
                   </div>
@@ -511,8 +627,12 @@ export function ResumeBuilder({
               </div>
 
               <div className="flex justify-between gap-4">
-                <button type="submit" className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90">
-                  Save Resume
+                <button 
+                  type="submit" 
+                  disabled={isSaving}
+                  className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {isSaving ? "Saving..." : "Save Resume"}
                 </button>
                 <button 
                   type="button" 
@@ -540,15 +660,18 @@ export function ResumeBuilder({
               <button
                 key={template.id}
                 onClick={() => handleTemplateSelect(template.id as Template)}
-                className={`relative aspect-[210/297] w-full overflow-hidden rounded-lg border-2 transition-all hover:border-primary ${
-                  selectedTemplate === template.id ? 'border-primary ring-2 ring-primary ring-offset-2' : 'border-muted'
-                }`}
+                className={"relative aspect-[210/297] w-full overflow-hidden rounded-lg border-2 transition-all hover:border-primary " + 
+                  (selectedTemplate === template.id ? 'border-primary ring-2 ring-primary ring-offset-2' : 'border-muted')}
               >
-                <img
-                  src={template.preview}
-                  alt={template.name}
-                  className="absolute inset-0 h-full w-full object-cover"
-                />
+                <div className="relative w-full h-full">
+                  <Image
+                    src={template.preview}
+                    alt={template.name}
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                  />
+                </div>
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent">
                   <div className="absolute bottom-0 p-3 text-white">
                     <h4 className="font-medium">{template.name}</h4>

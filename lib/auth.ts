@@ -1,15 +1,17 @@
-import { createClient } from './supabase/server'
+import { createClient } from './supabase/client'
 import { NextRequest, NextResponse } from 'next/server'
 import { AuthenticatorAssuranceLevels } from '@supabase/supabase-js'
-import type { FactorList } from '@/types/auth'
+import type { FactorList } from '../types/auth'
 
+// Keep middleware functions that use server-side client
 export async function requireAuth(req: NextRequest) {
-  const supabase = createClient()
-
-  // Always use getUser() for auth checks, not getSession()
-  const { data: { user }, error } = await supabase.auth.getUser()
-
-  if (error || !user) {
+  const response = await fetch('/api/auth/check', {
+    headers: {
+      cookie: req.headers.get('cookie') || ''
+    }
+  })
+  
+  if (!response.ok) {
     // For API routes
     if (req.nextUrl.pathname.startsWith('/api/')) {
       return NextResponse.json(
@@ -28,26 +30,15 @@ export async function requireAuth(req: NextRequest) {
 }
 
 export async function requireMFA(req: NextRequest) {
-  const supabase = createClient()
-  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  const response = await fetch('/api/auth/mfa/check', {
+    headers: {
+      cookie: req.headers.get('cookie') || ''
+    }
+  })
 
-  if (userError || !user) {
-    return NextResponse.json(
-      { error: 'Unauthorized - Authentication required' },
-      { status: 401 }
-    )
-  }
-
-  const { data, error: mfaError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
-  const currentLevel = data?.currentLevel ?? null
-
-  if (mfaError || currentLevel !== 'aal2' as AuthenticatorAssuranceLevels) {
-    // Check if user has MFA set up
-    const { data: factors } = await supabase.auth.mfa.listFactors()
-    const hasMFASetup = (factors?.totp ?? []).length > 0 || (factors?.phone ?? []).length > 0
-
-    // Redirect based on MFA setup status
-    const redirectPath = hasMFASetup ? '/auth/mfa' : '/settings/security'
+  if (!response.ok) {
+    const data = await response.json()
+    const redirectPath = data.hasMFASetup ? '/auth/mfa' : '/settings/security'
     const redirectUrl = new URL(redirectPath, req.url)
     redirectUrl.searchParams.set('redirectTo', req.nextUrl.pathname)
     return NextResponse.redirect(redirectUrl)
@@ -74,6 +65,7 @@ export function isPublicRoute(pathname: string): boolean {
   return publicPaths.some(path => pathname === path)
 }
 
+// Client-side auth helpers using browser client
 export async function getUser() {
   const supabase = createClient()
   try {
@@ -126,74 +118,4 @@ export async function listFactors(): Promise<FactorList> {
     console.error('Error:', error)
     return { totp: [], phone: [] }
   }
-}
-
-export async function enrollTOTP() {
-  const supabase = createClient()
-  try {
-    const { data, error } = await supabase.auth.mfa.enroll({
-      factorType: 'totp'
-    })
-    if (error) throw error
-    return data
-  } catch (error) {
-    console.error('Error:', error)
-    throw error
-  }
-}
-
-export async function verifyTOTP(factorId: string, code: string) {
-  const supabase = createClient()
-  try {
-    const { data, error } = await supabase.auth.mfa.challengeAndVerify({
-      factorId,
-      code
-    })
-    if (error) throw error
-    return data
-  } catch (error) {
-    console.error('Error:', error)
-    throw error
-  }
-}
-
-export async function unenrollFactor(factorId: string) {
-  const supabase = createClient()
-  try {
-    const { data, error } = await supabase.auth.mfa.unenroll({ factorId })
-    if (error) throw error
-    return data
-  } catch (error) {
-    console.error('Error:', error)
-    throw error
-  }
-}
-
-// Helper to protect API routes with MFA requirement
-export async function withAuthMFA(
-  req: NextRequest, 
-  handler: (user: any) => Promise<NextResponse>,
-  requiredLevel: AuthenticatorAssuranceLevels = 'aal2'
-) {
-  const supabase = createClient()
-  const { data: { user }, error: userError } = await supabase.auth.getUser()
-
-  if (userError || !user) {
-    return NextResponse.json(
-      { error: 'Unauthorized - Authentication required' },
-      { status: 401 }
-    )
-  }
-
-  const { data, error: mfaError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
-  const currentLevel = data?.currentLevel ?? null
-  
-  if (mfaError || currentLevel !== requiredLevel) {
-    return NextResponse.json(
-      { error: 'Unauthorized - MFA required' },
-      { status: 403 }
-    )
-  }
-
-  return handler(user)
 }

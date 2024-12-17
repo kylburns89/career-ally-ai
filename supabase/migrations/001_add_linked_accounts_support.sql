@@ -1,33 +1,10 @@
--- Check if profiles table exists and create if not
-create table if not exists profiles (
-  id uuid references auth.users on delete cascade not null primary key,
-  title text,
-  bio text,
-  location text,
-  years_experience integer,
-  skills text[] default array[]::text[],
-  industries text[] default array[]::text[],
-  education jsonb[] default array[]::jsonb[],
-  work_history jsonb[] default array[]::jsonb[],
-  desired_salary integer,
-  desired_location text,
-  remote_only boolean default false,
-  linkedin text,
-  github text,
-  portfolio text,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
-);
+-- Migration to add linked accounts support
+-- This migration preserves all existing data while adding new functionality
 
--- Enable RLS
-alter table profiles enable row level security;
+begin;
 
--- Drop existing policies if they exist
-drop policy if exists "Users can view own profile" on profiles;
-drop policy if exists "Users can update own profile" on profiles;
-drop policy if exists "Users can insert own profile" on profiles;
-
--- Function to check if user has access to profile
+-- Safely create function to check if user has access to profile
+-- This does not affect existing data
 create or replace function auth.user_has_profile_access(profile_id uuid)
 returns boolean as $$
 declare
@@ -49,7 +26,26 @@ begin
 end;
 $$ language plpgsql security definer;
 
--- Recreate policies with support for linked accounts
+-- Safely update policies without affecting data
+-- First check if policies exist to avoid errors
+do $$
+begin
+  -- Drop policies if they exist
+  if exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'profiles' and policyname = 'Users can view own profile') then
+    drop policy "Users can view own profile" on profiles;
+  end if;
+  
+  if exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'profiles' and policyname = 'Users can update own profile') then
+    drop policy "Users can update own profile" on profiles;
+  end if;
+  
+  if exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'profiles' and policyname = 'Users can insert own profile') then
+    drop policy "Users can insert own profile" on profiles;
+  end if;
+end$$;
+
+-- Create new policies that support linked accounts
+-- These policies only change access rules, not the underlying data
 create policy "Users can view own profile"
   on profiles for select
   using (auth.user_has_profile_access(id));
@@ -63,6 +59,7 @@ create policy "Users can insert own profile"
   with check (auth.uid() = id);
 
 -- Function to handle profile copying for linked accounts
+-- This only affects new user creations, not existing data
 create or replace function handle_linked_profiles()
 returns trigger as $$
 declare
@@ -105,29 +102,18 @@ begin
 end;
 $$ language plpgsql security definer;
 
--- Create trigger for handling linked profiles
+-- Safely create trigger for handling linked profiles
+-- First remove if exists to avoid errors
 drop trigger if exists handle_linked_profiles on auth.users;
+
+-- Create new trigger that only affects new user creations
 create trigger handle_linked_profiles
   after insert on auth.users
   for each row
   execute function handle_linked_profiles();
 
--- Create or replace the updated_at trigger function
-create or replace function handle_updated_at()
-returns trigger as $$
-begin
-  new.updated_at = now();
-  return new;
-end;
-$$ language plpgsql;
+commit;
 
--- Drop and recreate the trigger
-drop trigger if exists handle_updated_at on profiles;
-create trigger handle_updated_at
-  before update on profiles
-  for each row
-  execute function handle_updated_at();
-
--- Grant necessary permissions
-grant usage on schema public to anon, authenticated;
-grant all on profiles to anon, authenticated;
+-- Verification query to ensure no data was lost
+-- Run this after migration to verify data integrity
+-- select count(*) as profile_count from profiles;

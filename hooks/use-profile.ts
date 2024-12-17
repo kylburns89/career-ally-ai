@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
-import { Database } from '@/types/database'
+import { Database } from '../types/database'
 
 type Profile = Database['public']['Tables']['profiles']['Row']
 
@@ -14,26 +14,26 @@ export function useProfile() {
   useEffect(() => {
     const getProfile = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession()
+        const { data: { user }, error: userError } = await supabase.auth.getUser()
         
-        if (!session) {
+        if (userError || !user) {
           setLoading(false)
           return
         }
 
-        // Try to get existing profile
-        const { data: profile, error } = await supabase
+        // Try to get existing profile - our RLS policy will handle linked accounts
+        const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('*')
-          .eq('id', session.user.id)
+          .eq('id', user.id)
           .single()
 
-        if (error && error.code !== 'PGRST116') {
-          throw error
+        if (profileError && profileError.code !== 'PGRST116') {
+          throw profileError
         }
 
         if (!profile) {
-          // Create new profile if it doesn't exist
+          // Create new profile if no existing profile found
           const response = await fetch('/api/profile', {
             method: 'POST',
             headers: {
@@ -75,12 +75,21 @@ export function useProfile() {
 
   const updateProfile = async (updates: Partial<Profile>) => {
     try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      
+      if (userError || !user) {
+        throw new Error('No authenticated user')
+      }
+
       const response = await fetch('/api/profile', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(updates),
+        body: JSON.stringify({
+          ...updates,
+          id: user.id // Ensure we're updating the correct profile
+        }),
       })
 
       if (!response.ok) {

@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { useToast } from '@/components/ui/use-toast';
-import type { Resume, ResumeContent, Template } from '@/types/resume';
-import { normalizeTemplate, formToDbFormat } from '@/types/resume';
-import type { Database } from '@/types/database';
-import type { Json } from '@/types/database';
+import { useToast } from '../components/ui/use-toast';
+import type { Resume, ResumeContent, Template } from '../types/resume';
+import { normalizeTemplate, formToDbFormat } from '../types/resume';
+import type { Database } from '../types/database';
+import type { Json } from '../types/database';
 
 export function useResumes() {
   const [resumes, setResumes] = useState<Resume[]>([]);
@@ -14,21 +14,44 @@ export function useResumes() {
   const { toast } = useToast();
 
   useEffect(() => {
+    // Subscribe to auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        fetchResumes();
+      } else {
+        setResumes([]);
+      }
+    });
+
+    // Initial fetch
     fetchResumes();
+
+    // Cleanup subscription
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const fetchResumes = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        throw new Error('No active session');
+      // First check if we have an active session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        setResumes([]);
+        return;
+      }
+
+      // Then verify the user is authenticated
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        setResumes([]);
+        return;
       }
 
       const { data, error } = await supabase
         .from('resumes')
         .select('*')
-        .eq('user_id', session.user.id)
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -81,10 +104,16 @@ export function useResumes() {
 
   const updateResume = async (id: string, name: string, content: ResumeContent) => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        throw new Error('No active session');
+      // First check if we have an active session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        throw new Error('Please sign in to continue');
+      }
+
+      // Then verify the user is authenticated
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        throw new Error('Please sign in to continue');
       }
 
       // Convert content to database format
@@ -101,7 +130,7 @@ export function useResumes() {
           updated_at: new Date().toISOString(),
         })
         .eq('id', id)
-        .eq('user_id', session.user.id)
+        .eq('user_id', user.id)
         .select()
         .single();
 
@@ -138,10 +167,16 @@ export function useResumes() {
     try {
       setIsUploading(true);
 
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        throw new Error('No active session');
+      // First check if we have an active session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        throw new Error('Please sign in to continue');
+      }
+
+      // Then verify the user is authenticated
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        throw new Error('Please sign in to continue');
       }
 
       // Upload file to Supabase Storage
@@ -194,7 +229,7 @@ export function useResumes() {
       const { data: resume, error: dbError } = await supabase
         .from('resumes')
         .insert({
-          user_id: session.user.id,
+          user_id: user.id,
           name,
           content: jsonContent,
         })
@@ -238,10 +273,16 @@ export function useResumes() {
 
   const deleteResume = async (id: string) => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        throw new Error('No active session');
+      // First check if we have an active session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session) {
+        throw new Error('Please sign in to continue');
+      }
+
+      // Then verify the user is authenticated
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        throw new Error('Please sign in to continue');
       }
 
       const resume = resumes.find((r) => r.id === id);
@@ -253,7 +294,7 @@ export function useResumes() {
         if (fileName) {
           const { error: storageError } = await supabase.storage
             .from('resumes')
-            .remove([`${session.user.id}/${fileName}`]);
+            .remove([`${user.id}/${fileName}`]);
 
           if (storageError) throw storageError;
         }
@@ -264,7 +305,7 @@ export function useResumes() {
         .from('resumes')
         .delete()
         .eq('id', id)
-        .eq('user_id', session.user.id);
+        .eq('user_id', user.id);
 
       if (dbError) throw dbError;
 

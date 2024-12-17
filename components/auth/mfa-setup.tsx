@@ -6,8 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { enrollTOTP, verifyTOTP } from '@/lib/auth'
-import QRCode from 'qrcode.react'
+import { enrollMFA, verifyMFA } from '@/app/auth/actions'
+import { QRCodeSVG } from 'qrcode.react'
 
 export function MFASetup({ redirectTo = '/' }: { redirectTo?: string }) {
   const router = useRouter()
@@ -20,14 +20,15 @@ export function MFASetup({ redirectTo = '/' }: { redirectTo?: string }) {
 
   const handleSetup = async () => {
     try {
-      const data = await enrollTOTP()
+      const { data, error } = await enrollMFA()
+      if (error) throw new Error(error)
       if (!data) throw new Error('Failed to enroll TOTP')
       
       setFactorId(data.id)
       setQrCode(data.totp.qr_code)
       setSecret(data.totp.secret)
       setStep('verify')
-    } catch (err) {
+    } catch (err: any) {
       setError('Failed to set up MFA. Please try again.')
       console.error('MFA setup error:', err)
     }
@@ -35,9 +36,10 @@ export function MFASetup({ redirectTo = '/' }: { redirectTo?: string }) {
 
   const handleVerify = async () => {
     try {
-      await verifyTOTP(factorId, verificationCode)
+      const { error } = await verifyMFA(factorId, verificationCode)
+      if (error) throw new Error(error)
       router.push(redirectTo)
-    } catch (err) {
+    } catch (err: any) {
       setError('Invalid verification code. Please try again.')
       console.error('MFA verification error:', err)
     }
@@ -49,7 +51,7 @@ export function MFASetup({ redirectTo = '/' }: { redirectTo?: string }) {
         <h2 className="text-2xl font-bold mb-4">Set Up Two-Factor Authentication</h2>
         <p className="mb-4">
           Enhance your account security by setting up two-factor authentication.
-          You'll need an authenticator app like Google Authenticator or Authy.
+          You&apos;ll need an authenticator app like Google Authenticator or Authy.
         </p>
         {error && <p className="text-red-500 mb-4">{error}</p>}
         <Button onClick={handleSetup}>Begin Setup</Button>
@@ -63,7 +65,7 @@ export function MFASetup({ redirectTo = '/' }: { redirectTo?: string }) {
       <div className="mb-4">
         <p className="mb-2">1. Scan this QR code with your authenticator app:</p>
         <div className="flex justify-center mb-4">
-          {qrCode && <QRCode value={qrCode} size={200} />}
+          {qrCode && <QRCodeSVG value={qrCode} size={200} />}
         </div>
         <p className="mb-2">Or manually enter this code:</p>
         <code className="block bg-gray-100 p-2 rounded mb-4">{secret}</code>
@@ -75,7 +77,7 @@ export function MFASetup({ redirectTo = '/' }: { redirectTo?: string }) {
           id="code"
           type="text"
           value={verificationCode}
-          onChange={(e) => setVerificationCode(e.target.value.trim())}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setVerificationCode(e.target.value.trim())}
           className="mb-2"
           placeholder="Enter 6-digit code"
         />

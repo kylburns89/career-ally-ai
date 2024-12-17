@@ -3,8 +3,8 @@
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import { useProfile } from "@/hooks/use-profile"
-import { LoadingPage } from "@/components/loading"
+import { useProfile } from "../../hooks/use-profile"
+import { LoadingPage } from "../loading"
 
 export default function ProtectedRoute({
   children,
@@ -17,14 +17,35 @@ export default function ProtectedRoute({
 
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
+      const { data: { user }, error } = await supabase.auth.getUser()
       
-      if (!session) {
-        router.push("/auth/login")
+      if (error || !user) {
+        // Store the current path for redirect after login
+        const currentPath = window.location.pathname
+        if (currentPath !== '/auth/login') {
+          const redirectUrl = new URL('/auth/login', window.location.origin)
+          redirectUrl.searchParams.set('redirectTo', currentPath)
+          router.push(redirectUrl.toString())
+        } else {
+          router.push('/auth/login')
+        }
       }
     }
 
     checkAuth()
+
+    // Subscribe to auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || !session) {
+        router.push('/auth/login')
+      }
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
   }, [supabase, router])
 
   // Show loading state while checking auth and loading profile

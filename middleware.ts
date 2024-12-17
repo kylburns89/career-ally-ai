@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from './lib/supabase/server';
 
 // List of public routes that don't require authentication
 const publicRoutes = [
@@ -32,16 +32,16 @@ export async function middleware(request: NextRequest) {
     // Create Supabase client
     const supabase = createClient();
 
-    // Refresh session if it exists
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    // Check authenticated user instead of session
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
 
     // For public routes, just return the response
     if (isPublicRoute(request.nextUrl.pathname)) {
       return response;
     }
 
-    // If there's a session error or no session, redirect to login
-    if (sessionError || !session) {
+    // If there's a user error or no user, redirect to login
+    if (userError || !user) {
       // Don't redirect if already on login page to prevent loops
       if (request.nextUrl.pathname === '/auth/login') {
         return response;
@@ -53,10 +53,10 @@ export async function middleware(request: NextRequest) {
     }
 
     // Add user context to headers for API routes
-    if (session.user) {
-      response.headers.set('x-user-id', session.user.id);
-      response.headers.set('x-user-email', session.user.email ?? '');
-      response.headers.set('x-user-role', session.user.role ?? '');
+    if (user) {
+      response.headers.set('x-user-id', user.id);
+      response.headers.set('x-user-email', user.email ?? '');
+      response.headers.set('x-user-role', user.role ?? '');
     }
 
     return response;
