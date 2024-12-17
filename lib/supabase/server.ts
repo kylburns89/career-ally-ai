@@ -14,21 +14,20 @@ export function createClient() {
         },
         set(name: string, value: string, options: CookieOptions) {
           try {
-            // Ensure cookies work in production
             cookieStore.set({
               name,
               value,
               ...options,
-              // Force secure in production
-              secure: process.env.NODE_ENV === 'production' ? true : options.secure,
-              // Ensure same-site policy
-              sameSite: 'lax',
-              // Set path to root to ensure availability across all routes
+              // Always secure in production
+              secure: process.env.NODE_ENV === 'production',
+              // Always set path to root
               path: '/',
-              // Set domain based on environment
-              ...(process.env.NODE_ENV === 'production' && process.env.NEXT_PUBLIC_SITE_URL
-                ? { domain: new URL(process.env.NEXT_PUBLIC_SITE_URL).hostname }
-                : {})
+              // Use Strict same-site policy
+              sameSite: 'strict',
+              // Set max age for session cookies
+              maxAge: name.includes('access_token') ? 3600 : undefined,
+              // Don't set domain to allow it to use the current domain
+              domain: undefined
             })
           } catch (error) {
             console.warn('Error setting cookie:', error)
@@ -36,18 +35,15 @@ export function createClient() {
         },
         remove(name: string, options: CookieOptions) {
           try {
-            // Use same options as set to ensure proper removal
             cookieStore.set({
               name,
               value: '',
               ...options,
-              secure: process.env.NODE_ENV === 'production' ? true : options.secure,
-              sameSite: 'lax',
+              secure: process.env.NODE_ENV === 'production',
               path: '/',
-              ...(process.env.NODE_ENV === 'production' && process.env.NEXT_PUBLIC_SITE_URL
-                ? { domain: new URL(process.env.NEXT_PUBLIC_SITE_URL).hostname }
-                : {}),
-              maxAge: 0
+              sameSite: 'strict',
+              maxAge: 0,
+              domain: undefined
             })
           } catch (error) {
             console.warn('Error removing cookie:', error)

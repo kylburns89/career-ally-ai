@@ -1,62 +1,33 @@
 'use server'
 
-import { createClient } from '../../lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { getURL } from '../../lib/utils'
+import { getURL } from '@/lib/utils'
 
 export async function signIn(formData: FormData) {
-  const email = formData.get('email') as string
-  const password = formData.get('password') as string
-  
+  // Call cookies() before any Supabase operations to opt out of caching
   const cookieStore = cookies()
-  const supabase = createClient()
-
-  // First, try to find if a user with this email exists and has a GitHub provider
-  const { data: { users }, error: usersError } = await supabase.auth.admin.listUsers()
-  const existingUser = users?.find(u => 
-    u.email === email && 
-    u.app_metadata?.provider === 'github'
-  )
-
-  if (existingUser) {
-    // If user exists with GitHub, try to link the email/password account
-    const { error: signUpError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${getURL()}auth/callback`,
-      }
-    })
-
-    if (signUpError) {
-      return { error: signUpError.message }
-    }
-
-    // Now sign in with the credentials
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-
-    if (signInError) {
-      return { error: signInError.message }
-    }
-  } else {
-    // No existing GitHub account, proceed with normal sign in
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-
-    if (error) {
-      return { error: error.message }
-    }
-  }
-
-  // Get the intended destination
   const redirectTo = cookieStore.get('redirectTo')?.value || '/'
   
+  const supabase = createClient()
+  
+  const { error } = await supabase.auth.signInWithPassword({
+    email: formData.get('email') as string,
+    password: formData.get('password') as string,
+  })
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  // Verify the user is authenticated using getUser() instead of getSession()
+  // This is more secure as it validates the token with the Supabase Auth server
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return { error: 'Authentication failed' }
+  }
+
   // Clear the redirect cookie
   cookieStore.delete('redirectTo')
   
@@ -64,16 +35,21 @@ export async function signIn(formData: FormData) {
 }
 
 export async function signOut() {
+  // Call cookies() before any Supabase operations to opt out of caching
   const cookieStore = cookies()
   const supabase = createClient()
 
   // Sign out from Supabase auth
-  await supabase.auth.signOut()
+  const { error } = await supabase.auth.signOut()
+  if (error) {
+    return { error: error.message }
+  }
 
   // Clear all auth-related cookies
   const authCookies = [
     'sb-access-token',
     'sb-refresh-token',
+    'sb-auth-token',
     'supabase-auth-token',
     'redirectTo'
   ]
@@ -93,42 +69,15 @@ export async function signOut() {
 }
 
 export async function signUp(formData: FormData) {
-  const email = formData.get('email') as string
-  const password = formData.get('password') as string
-  
+  // Call cookies() before any Supabase operations to opt out of caching
+  cookies()
   const supabase = createClient()
-  
-  // Check if a user with this email exists with a different provider
-  const { data: { users }, error: usersError } = await supabase.auth.admin.listUsers()
-  const existingUser = users?.find(u => 
-    u.email === email && 
-    u.app_metadata?.provider !== 'email'
-  )
 
-  if (existingUser) {
-    // If user exists with another provider, link the accounts
-    const { error: linkError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${getURL()}auth/callback`,
-      }
-    })
-
-    if (linkError) {
-      return { error: linkError.message }
-    }
-
-    // Redirect to a special page explaining the account linking
-    redirect('/auth/link-accounts')
-  }
-
-  // No existing account, proceed with normal sign up
   const { error } = await supabase.auth.signUp({
-    email,
-    password,
+    email: formData.get('email') as string,
+    password: formData.get('password') as string,
     options: {
-      emailRedirectTo: `${getURL()}auth/callback`,
+      emailRedirectTo: `${getURL()}auth/callback?next=/`,
     },
   })
 
@@ -140,6 +89,8 @@ export async function signUp(formData: FormData) {
 }
 
 export async function signInWithOAuth(provider: 'github' | 'google') {
+  // Call cookies() before any Supabase operations to opt out of caching
+  cookies()
   const supabase = createClient()
   
   const { data, error } = await supabase.auth.signInWithOAuth({
@@ -147,10 +98,9 @@ export async function signInWithOAuth(provider: 'github' | 'google') {
     options: {
       redirectTo: `${getURL()}auth/callback`,
       queryParams: {
-        // Enable account linking if the email matches an existing account
         access_type: 'offline',
-        prompt: 'consent'
-      }
+        prompt: 'consent',
+      },
     },
   })
 
@@ -165,7 +115,10 @@ export async function signInWithOAuth(provider: 'github' | 'google') {
 
 // MFA-related server actions
 export async function enrollMFA() {
+  // Call cookies() before any Supabase operations to opt out of caching
+  cookies()
   const supabase = createClient()
+  
   try {
     const { data, error } = await supabase.auth.mfa.enroll({
       factorType: 'totp'
@@ -178,7 +131,10 @@ export async function enrollMFA() {
 }
 
 export async function verifyMFA(factorId: string, code: string) {
+  // Call cookies() before any Supabase operations to opt out of caching
+  cookies()
   const supabase = createClient()
+  
   try {
     const { data, error } = await supabase.auth.mfa.challengeAndVerify({
       factorId,
@@ -192,7 +148,10 @@ export async function verifyMFA(factorId: string, code: string) {
 }
 
 export async function unenrollMFA(factorId: string) {
+  // Call cookies() before any Supabase operations to opt out of caching
+  cookies()
   const supabase = createClient()
+  
   try {
     const { data, error } = await supabase.auth.mfa.unenroll({ factorId })
     if (error) throw error

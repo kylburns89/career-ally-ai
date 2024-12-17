@@ -2,8 +2,8 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import { useProfile } from "../../hooks/use-profile"
+import { useAuth } from "@/hooks/use-auth"
+import { useProfile } from "@/hooks/use-profile"
 import { LoadingPage } from "../loading"
 
 export default function ProtectedRoute({
@@ -12,49 +12,30 @@ export default function ProtectedRoute({
   children: React.ReactNode
 }) {
   const router = useRouter()
-  const supabase = createClientComponentClient()
-  const { profile, loading } = useProfile()
+  const { user, loading: authLoading } = useAuth()
+  const { profile, loading: profileLoading } = useProfile()
 
   useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { user }, error } = await supabase.auth.getUser()
-      
-      if (error || !user) {
-        // Store the current path for redirect after login
-        const currentPath = window.location.pathname
-        if (currentPath !== '/auth/login') {
-          const redirectUrl = new URL('/auth/login', window.location.origin)
-          redirectUrl.searchParams.set('redirectTo', currentPath)
-          router.push(redirectUrl.toString())
-        } else {
-          router.push('/auth/login')
-        }
-      }
-    }
-
-    checkAuth()
-
-    // Subscribe to auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT' || !session) {
+    if (!authLoading && !user) {
+      // Store the current path for redirect after login
+      const currentPath = window.location.pathname
+      if (currentPath !== '/auth/login') {
+        const redirectUrl = new URL('/auth/login', window.location.origin)
+        redirectUrl.searchParams.set('redirectTo', currentPath)
+        router.push(redirectUrl.toString())
+      } else {
         router.push('/auth/login')
       }
-    })
-
-    return () => {
-      subscription.unsubscribe()
     }
-  }, [supabase, router])
+  }, [user, authLoading, router])
 
   // Show loading state while checking auth and loading profile
-  if (loading) {
+  if (authLoading || profileLoading) {
     return <LoadingPage />
   }
 
-  // If we have a profile, render the protected content
-  if (profile) {
+  // If we have both a user and profile, render the protected content
+  if (user && profile) {
     return <>{children}</>
   }
 

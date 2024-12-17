@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState } from 'react';
-import { createClient } from '../../lib/supabase/client';
+import { createClient } from '@/lib/supabase/client';
 import { User, Session, AuthChangeEvent } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 
@@ -30,16 +30,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Initialize auth state
     const initializeAuth = async () => {
       try {
-        // Get session first
+        // First get the session
         const { data: { session: initialSession } } = await supabase.auth.getSession();
         
         if (initialSession) {
-          // If we have a session, verify the user
-          const { data: { user: verifiedUser } } = await supabase.auth.getUser();
-          setUser(verifiedUser);
-          setSession(initialSession);
+          // IMPORTANT: Always verify the user with getUser()
+          // This ensures the token is valid by checking with the Supabase Auth server
+          const { data: { user: verifiedUser }, error: userError } = await supabase.auth.getUser();
+          
+          if (userError) {
+            console.error('Error verifying user:', userError);
+            // Clear invalid session state
+            setUser(null);
+            setSession(null);
+            await supabase.auth.signOut();
+          } else if (verifiedUser) {
+            // User is verified, set the state
+            setUser(verifiedUser);
+            setSession(initialSession);
+          } else {
+            // No verified user found
+            setUser(null);
+            setSession(null);
+            await supabase.auth.signOut();
+          }
         } else {
-          // No session, clear state
+          // No session found
           setUser(null);
           setSession(null);
         }
@@ -61,21 +77,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, currentSession: Session | null) => {
       console.log('Auth state change:', event);
       
-      if (event === 'SIGNED_IN') {
-        setSession(currentSession);
-        setUser(currentSession?.user ?? null);
-        // Force a router refresh to update server state
-        router.refresh();
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        try {
+          // Always verify the user with getUser() on auth state changes
+          const { data: { user: verifiedUser }, error: userError } = await supabase.auth.getUser();
+          
+          if (userError) {
+            console.error('Error verifying user:', userError);
+            setUser(null);
+            setSession(null);
+            await supabase.auth.signOut();
+            router.push('/auth/login');
+          } else if (verifiedUser) {
+            setUser(verifiedUser);
+            setSession(currentSession);
+            // Force a router refresh to update server state
+            router.refresh();
+          } else {
+            setUser(null);
+            setSession(null);
+            await supabase.auth.signOut();
+            router.push('/auth/login');
+          }
+        } catch (error) {
+          console.error('Error handling auth change:', error);
+          setUser(null);
+          setSession(null);
+          await supabase.auth.signOut();
+          router.push('/auth/login');
+        }
       } else if (event === 'SIGNED_OUT') {
-        setSession(null);
         setUser(null);
+        setSession(null);
         // Clear any cached data and refresh
         router.refresh();
-      } else if (event === 'TOKEN_REFRESHED') {
-        setSession(currentSession);
-        // Verify user is still valid
-        const { data: { user: verifiedUser } } = await supabase.auth.getUser();
-        setUser(verifiedUser);
+        router.push('/auth/login');
       }
       
       setLoading(false);

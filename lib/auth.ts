@@ -1,69 +1,21 @@
 import { createClient } from './supabase/client'
-import { NextRequest, NextResponse } from 'next/server'
-import { AuthenticatorAssuranceLevels } from '@supabase/supabase-js'
 import type { FactorList } from '../types/auth'
 
-// Keep middleware functions that use server-side client
-export async function requireAuth(req: NextRequest) {
-  const response = await fetch('/api/auth/check', {
-    headers: {
-      cookie: req.headers.get('cookie') || ''
-    }
-  })
-  
-  if (!response.ok) {
-    // For API routes
-    if (req.nextUrl.pathname.startsWith('/api/')) {
-      return NextResponse.json(
-        { error: 'Unauthorized - Authentication required' },
-        { status: 401 }
-      )
-    }
-
-    // For page routes, redirect to login
-    const redirectUrl = new URL('/auth/login', req.url)
-    redirectUrl.searchParams.set('redirectTo', req.nextUrl.pathname)
-    return NextResponse.redirect(redirectUrl)
-  }
-
-  return null // No error, request is authenticated
-}
-
-export async function requireMFA(req: NextRequest) {
-  const response = await fetch('/api/auth/mfa/check', {
-    headers: {
-      cookie: req.headers.get('cookie') || ''
-    }
-  })
-
-  if (!response.ok) {
-    const data = await response.json()
-    const redirectPath = data.hasMFASetup ? '/auth/mfa' : '/settings/security'
-    const redirectUrl = new URL(redirectPath, req.url)
-    redirectUrl.searchParams.set('redirectTo', req.nextUrl.pathname)
-    return NextResponse.redirect(redirectUrl)
-  }
-
-  return null // No error, request is MFA authenticated
-}
-
-export function isPublicRoute(pathname: string): boolean {
-  const publicPaths = [
-    '/',
-    '/about',
-    '/auth/login',
-    '/auth/signup',
-    '/auth/callback',
-    '/auth/reset-password',
-    '/auth/forgot-password',
-    '/auth/mfa',
-    '/support/help',
-    '/support/privacy',
-    '/support/terms'
-  ]
-  
-  return publicPaths.some(path => pathname === path)
-}
+// List of public routes that don't require authentication
+export const publicRoutes = [
+  '/',
+  '/about',
+  '/auth/login',
+  '/auth/signup',
+  '/auth/callback',
+  '/auth/reset-password',
+  '/auth/forgot-password',
+  '/auth/mfa',
+  '/auth/verify',
+  '/support/help',
+  '/support/privacy',
+  '/support/terms'
+] as const
 
 // Client-side auth helpers using browser client
 export async function getUser() {
