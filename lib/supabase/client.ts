@@ -9,16 +9,14 @@ export function createClient() {
         detectSessionInUrl: true,
         persistSession: true,
         autoRefreshToken: true,
-        storageKey: 'sb-auth-token', // Explicitly set storage key for better control
+        // Use localStorage instead of sessionStorage to persist session across browser restarts
         storage: {
-          // Use sessionStorage instead of localStorage for better security
-          // This ensures tokens are cleared when the browser is closed
-          getItem: (key) => sessionStorage.getItem(key),
-          setItem: (key, value) => sessionStorage.setItem(key, value),
+          getItem: (key) => localStorage.getItem(key),
+          setItem: (key, value) => localStorage.setItem(key, value),
           removeItem: (key) => {
-            sessionStorage.removeItem(key)
-            // Also remove from localStorage to ensure complete cleanup
             localStorage.removeItem(key)
+            // Also remove from sessionStorage to ensure complete cleanup
+            sessionStorage.removeItem(key)
           }
         }
       }

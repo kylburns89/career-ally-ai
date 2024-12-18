@@ -22,15 +22,19 @@ export function createClient() {
               secure: process.env.NODE_ENV === 'production',
               // Always set path to root
               path: '/',
-              // Use Strict same-site policy
+              // Use strict sameSite policy for better security
               sameSite: 'strict',
-              // Set max age for session cookies
-              maxAge: name.includes('access_token') ? 3600 : undefined,
+              // Set appropriate maxAge for different token types
+              maxAge: name.includes('access_token') 
+                ? 3600 // 1 hour for access tokens
+                : name.includes('refresh_token')
+                ? 30 * 24 * 3600 // 30 days for refresh tokens
+                : undefined,
               // Don't set domain to allow it to use the current domain
               domain: undefined
             })
           } catch (error) {
-            console.warn('Error setting cookie:', error)
+            console.error('Error setting cookie:', error)
           }
         },
         remove(name: string, options: CookieOptions) {
@@ -46,7 +50,7 @@ export function createClient() {
               domain: undefined
             })
           } catch (error) {
-            console.warn('Error removing cookie:', error)
+            console.error('Error removing cookie:', error)
           }
         },
       },

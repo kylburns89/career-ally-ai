@@ -2,7 +2,7 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { type NextRequest, NextResponse } from 'next/server'
 
 // List of public routes that don't require authentication
-const publicRoutes = ['/', '/about', '/auth/login', '/auth/signup', '/auth/callback', '/auth/verify']
+const publicRoutes = ['/', '/about', '/auth/login', '/auth/signup', '/auth/callback', '/auth/verify', '/auth/error']
 
 // Check if the route is public
 function isPublicRoute(pathname: string): boolean {
@@ -38,10 +38,14 @@ export async function updateSession(request: NextRequest) {
               ...options,
               secure: process.env.NODE_ENV === 'production',
               path: '/',
-              // Using 'lax' instead of 'strict' to support OAuth flows
-              // This allows cookies to be sent when redirecting from OAuth providers
-              sameSite: 'lax',
-              maxAge: name.includes('access_token') ? 3600 : undefined,
+              // Use strict sameSite policy for better security
+              sameSite: 'strict',
+              // Set appropriate maxAge for different token types
+              maxAge: name.includes('access_token') 
+                ? 3600 // 1 hour for access tokens
+                : name.includes('refresh_token')
+                ? 30 * 24 * 3600 // 30 days for refresh tokens
+                : undefined,
               domain: undefined
             })
           },
@@ -52,18 +56,22 @@ export async function updateSession(request: NextRequest) {
               ...options,
               secure: process.env.NODE_ENV === 'production',
               path: '/',
-              sameSite: 'lax',
+              sameSite: 'strict',
               maxAge: 0,
               domain: undefined
             })
           },
+        },
+        auth: {
+          detectSessionInUrl: true,
+          persistSession: true,
+          autoRefreshToken: true,
         },
       }
     )
 
     // IMPORTANT: Use getUser() instead of getSession() in middleware
     // getUser() sends a request to Supabase Auth server to revalidate the token
-    // This is more secure than getSession() which only checks the token locally
     const { data: { user }, error } = await supabase.auth.getUser()
 
     // If the route is public, just update the session and return
@@ -72,7 +80,19 @@ export async function updateSession(request: NextRequest) {
     }
 
     // For protected routes, check if we have a valid user
-    if (!user) {
+    if (error || !user) {
+      // If there was an error or no user, clear any invalid session cookies
+      const authCookies = [
+        'sb-access-token',
+        'sb-refresh-token',
+        'sb-auth-token',
+        'supabase-auth-token'
+      ]
+      
+      authCookies.forEach(name => {
+        response.cookies.delete(name)
+      })
+
       // Store the original URL to redirect back after login
       const redirectUrl = new URL('/auth/login', request.url)
       redirectUrl.searchParams.set('redirectTo', request.nextUrl.pathname)

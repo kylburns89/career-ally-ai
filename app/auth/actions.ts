@@ -23,9 +23,15 @@ export async function signIn(formData: FormData) {
 
   // Verify the user is authenticated using getUser() instead of getSession()
   // This is more secure as it validates the token with the Supabase Auth server
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return { error: 'Authentication failed' }
+  const { data: { user }, error: userError } = await supabase.auth.getUser()
+  if (userError || !user) {
+    return { error: userError?.message || 'Authentication failed' }
+  }
+
+  // Ensure session is properly set
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+  if (sessionError || !session) {
+    return { error: sessionError?.message || 'Failed to establish session' }
   }
 
   // Clear the redirect cookie
