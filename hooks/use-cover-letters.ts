@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '../lib/supabase/client';
 import { useToast } from '../components/ui/use-toast';
 import { Database } from '../types/database';
 import { CoverLetter } from '../types/cover-letter';
@@ -7,7 +7,7 @@ import { CoverLetter } from '../types/cover-letter';
 export function useCoverLetters() {
   const [coverLetters, setCoverLetters] = useState<CoverLetter[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const supabase = createClientComponentClient<Database>();
+  const supabase = createClient();
   const { toast } = useToast();
 
   useEffect(() => {

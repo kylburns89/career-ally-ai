@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { createClient } from '../lib/supabase/client'
 import { Contact, ContactStats, CommunicationEntry, JsonCommunicationEntry } from '../types/contact'
 import { Database } from '../types/database'
 
@@ -17,7 +17,7 @@ export function useContacts() {
     }
   })
   const [isLoading, setIsLoading] = useState(true)
-  const supabase = createClientComponentClient<Database>()
+  const supabase = createClient()
 
   const fetchContacts = useCallback(async () => {
     try {

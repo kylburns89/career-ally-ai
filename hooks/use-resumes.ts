@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '../lib/supabase/client';
 import { useToast } from '../components/ui/use-toast';
 import type { Resume, ResumeContent, Template } from '../types/resume';
 import { normalizeTemplate, formToDbFormat } from '../types/resume';
@@ -10,7 +10,7 @@ export function useResumes() {
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
-  const supabase = createClientComponentClient<Database>();
+  const supabase = createClient();
   const { toast } = useToast();
 
   useEffect(() => {
