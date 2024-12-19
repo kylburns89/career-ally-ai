@@ -55,12 +55,14 @@ export async function updateSession(request: NextRequest) {
               ...options,
               secure: process.env.NODE_ENV === 'production',
               path: '/',
-              sameSite: 'lax', // Changed to lax to better support OAuth flows
+              sameSite: process.env.NODE_ENV === 'production' ? 'lax' : 'strict',
               maxAge: name.includes('access_token') 
                 ? 3600 // 1 hour for access tokens
                 : name.includes('refresh_token')
                 ? 30 * 24 * 3600 // 30 days for refresh tokens
-                : undefined
+                : undefined,
+              // Don't set domain to allow it to use the current domain
+              domain: undefined
             })
           },
           remove(name: string, options: CookieOptions) {
@@ -69,6 +71,9 @@ export async function updateSession(request: NextRequest) {
               value: '',
               maxAge: 0,
               path: '/',
+              secure: process.env.NODE_ENV === 'production',
+              sameSite: process.env.NODE_ENV === 'production' ? 'lax' : 'strict',
+              domain: undefined
             })
           },
         },

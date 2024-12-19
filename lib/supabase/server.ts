@@ -20,17 +20,13 @@ export function createClient() {
               ...options,
               // Always secure in production
               secure: process.env.NODE_ENV === 'production',
-              // Always set path to root
               path: '/',
-              // Use strict sameSite policy for better security
-              sameSite: 'strict',
-              // Set appropriate maxAge for different token types
+              sameSite: process.env.NODE_ENV === 'production' ? 'lax' : 'strict',
               maxAge: name.includes('access_token') 
                 ? 3600 // 1 hour for access tokens
                 : name.includes('refresh_token')
                 ? 30 * 24 * 3600 // 30 days for refresh tokens
                 : undefined,
-              // Don't set domain to allow it to use the current domain
               domain: undefined
             })
           } catch (error) {
@@ -45,7 +41,7 @@ export function createClient() {
               ...options,
               secure: process.env.NODE_ENV === 'production',
               path: '/',
-              sameSite: 'strict',
+              sameSite: process.env.NODE_ENV === 'production' ? 'lax' : 'strict',
               maxAge: 0,
               domain: undefined
             })

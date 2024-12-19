@@ -10,14 +10,19 @@ export type AuthResult = AuthSuccess | AuthError
 
 // Helper to get base URL for redirects
 function getURL() {
-  let url = process?.env?.NEXT_PUBLIC_SITE_URL ?? 
-    process?.env?.NEXT_PUBLIC_VERCEL_URL ?? 
-    'http://localhost:3000/'
-  // Make sure to include `https://` when not localhost.
-  url = url.includes('http') ? url : `https://${url}`
-  // Make sure to include trailing `/`.
-  url = url.charAt(url.length - 1) === '/' ? url : `${url}/`
-  return url
+  // In production, prefer NEXT_PUBLIC_SITE_URL if set
+  if (process.env.NEXT_PUBLIC_SITE_URL) {
+    const url = process.env.NEXT_PUBLIC_SITE_URL
+    return url.endsWith('/') ? url : `${url}/`
+  }
+  
+  // For Vercel deployments
+  if (process.env.NEXT_PUBLIC_VERCEL_URL) {
+    return `https://${process.env.NEXT_PUBLIC_VERCEL_URL}/`
+  }
+  
+  // Fallback for local development
+  return 'http://localhost:3000/'
 }
 
 // Helper to handle auth errors consistently
