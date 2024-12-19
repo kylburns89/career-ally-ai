@@ -131,7 +131,7 @@ export function ApplicationTracker({
     }
 
     let error;
-    let updatedApplication;
+    let updatedApplication: ApplicationResponse | null;
     if (isEditMode && newApplication.id) {
       const { data, error: updateError } = await supabase
         .from("applications")
@@ -164,11 +164,12 @@ export function ApplicationTracker({
     }
 
     if (updatedApplication) {
+      const application = updatedApplication as ApplicationResponse;
       setApplications(prev => {
         if (isEditMode) {
-          return prev.map(app => app.id === updatedApplication.id ? updatedApplication : app)
+          return prev.map(app => app.id === application.id ? application : app)
         } else {
-          return [updatedApplication, ...prev]
+          return [application, ...prev]
         }
       })
     }
