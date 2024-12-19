@@ -1,5 +1,6 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { authConfig, createCookieOptions } from './config'
 
 export function createClient() {
   const cookieStore = cookies()
@@ -8,6 +9,7 @@ export function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      ...authConfig,
       cookies: {
         get(name: string) {
           return cookieStore.get(name)?.value
@@ -17,17 +19,8 @@ export function createClient() {
             cookieStore.set({
               name,
               value,
+              ...createCookieOptions(name),
               ...options,
-              // Always secure in production
-              secure: process.env.NODE_ENV === 'production',
-              path: '/',
-              sameSite: process.env.NODE_ENV === 'production' ? 'lax' : 'strict',
-              maxAge: name.includes('access_token') 
-                ? 3600 // 1 hour for access tokens
-                : name.includes('refresh_token')
-                ? 30 * 24 * 3600 // 30 days for refresh tokens
-                : undefined,
-              domain: undefined
             })
           } catch (error) {
             console.error('Error setting cookie:', error)
@@ -38,22 +31,14 @@ export function createClient() {
             cookieStore.set({
               name,
               value: '',
+              ...createCookieOptions(name),
               ...options,
-              secure: process.env.NODE_ENV === 'production',
-              path: '/',
-              sameSite: process.env.NODE_ENV === 'production' ? 'lax' : 'strict',
               maxAge: 0,
-              domain: undefined
             })
           } catch (error) {
             console.error('Error removing cookie:', error)
           }
         },
-      },
-      auth: {
-        detectSessionInUrl: true,
-        persistSession: true,
-        autoRefreshToken: true,
       },
     }
   )

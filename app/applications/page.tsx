@@ -1,25 +1,49 @@
-import { Metadata } from "next"
-import { ApplicationTracker } from "../../components/applications/application-tracker"
+import { createClient } from '../../lib/supabase/server'
+import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
+import { PageContainer } from '../../components/page-container'
+import { ApplicationTracker } from '../../components/applications/application-tracker'
 
-export const metadata: Metadata = {
-  title: "Application Tracker",
-  description: "Track and manage your job applications",
-}
+export default async function ApplicationsPage() {
+  const cookieStore = cookies()
+  const supabase = createClient()
 
-export default function ApplicationsPage() {
+  const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+  if (sessionError || !session) {
+    console.error('Session error:', sessionError)
+    redirect('/auth/login')
+  }
+
+  // Get initial applications data
+  const { data: applications, error: applicationsError } = await supabase
+    .from("applications")
+    .select("*, resumes(name), cover_letters(name), contacts(name, title)")
+    .order("created_at", { ascending: false })
+
+  if (applicationsError) {
+    console.error('Error fetching applications:', applicationsError)
+    throw applicationsError
+  }
+
+  // Get related data for dropdowns
+  const [
+    { data: resumes },
+    { data: coverLetters },
+    { data: contacts }
+  ] = await Promise.all([
+    supabase.from("resumes").select("id, name"),
+    supabase.from("cover_letters").select("id, name"),
+    supabase.from("contacts").select("id, name, title")
+  ])
+
   return (
-    <div className="container mx-auto py-10">
-      <div className="flex flex-col gap-8">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Application Tracker</h1>
-            <p className="text-muted-foreground">
-              Keep track of your job applications and their status
-            </p>
-          </div>
-        </div>
-        <ApplicationTracker />
-      </div>
-    </div>
+    <PageContainer>
+      <ApplicationTracker 
+        initialApplications={applications || []}
+        initialResumes={resumes || []}
+        initialCoverLetters={coverLetters || []}
+        initialContacts={contacts || []}
+      />
+    </PageContainer>
   )
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { createClient } from '../../lib/supabase/client';
 import { User, Session, AuthChangeEvent } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
@@ -26,60 +26,59 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
+  // Function to refresh session
+  const refreshSession = useCallback(async () => {
+    try {
+      const { data: { session: currentSession }, error } = await supabase.auth.getSession();
+      if (error) throw error;
+      
+      if (currentSession) {
+        const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
+        if (userError) throw userError;
+        
+        setSession(currentSession);
+        setUser(currentUser);
+      }
+    } catch (error) {
+      console.error('Error refreshing session:', error);
+      // On refresh error, clear state but don't sign out
+      setSession(null);
+      setUser(null);
+    }
+  }, []);
+
+  // Set up periodic session refresh
+  useEffect(() => {
+    const interval = setInterval(refreshSession, 10 * 60 * 1000); // every 10 minutes
+    return () => clearInterval(interval);
+  }, [refreshSession]);
+
   useEffect(() => {
     // Initialize auth state and set up listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event: AuthChangeEvent, currentSession: Session | null) => {
         try {
           if (event === 'INITIAL_SESSION') {
-            // Initial load - just set the session state
-            if (currentSession) {
-              const { data: { user: verifiedUser } } = await supabase.auth.getUser();
-              setUser(verifiedUser);
-              setSession(currentSession);
-            }
+            // Initial load - refresh session state
+            await refreshSession();
             setLoading(false);
             return;
           }
 
           if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-            const { data: { user: verifiedUser } } = await supabase.auth.getUser();
-            if (verifiedUser) {
-              setUser(verifiedUser);
-              setSession(currentSession);
-              router.refresh();
-            } else {
-              throw new Error('No verified user found');
-            }
+            await refreshSession();
+            router.refresh();
           } else if (event === 'SIGNED_OUT') {
             setUser(null);
             setSession(null);
             
-            // Check if we're on a protected route
-            const pathname = window.location.pathname;
-            const isPublicRoute = ['/', '/about'].includes(pathname) || 
-                                pathname.startsWith('/auth/') ||
-                                pathname.match(/\.(ico|png|jpg|jpeg|gif|svg|webp)$/);
-            
-            // Only redirect if we're on a protected route
-            if (!isPublicRoute) {
-              const redirectUrl = new URL('/auth/login', window.location.href);
-              redirectUrl.searchParams.set('redirectTo', pathname);
-              router.push(redirectUrl.toString());
-            }
-            
-            // Always refresh to update server state
+            // Let middleware handle redirects for protected routes
             router.refresh();
           } else if (event === 'PASSWORD_RECOVERY') {
-            // Handle password recovery flow
             router.push('/auth/reset-password');
           } else if (event === 'USER_UPDATED') {
-            // Refresh the user data
-            const { data: { user: updatedUser } } = await supabase.auth.getUser();
-            if (updatedUser) {
-              setUser(updatedUser);
-              router.refresh();
-            }
+            await refreshSession();
+            router.refresh();
           }
         } catch (error) {
           console.error('Auth state change error:', error);

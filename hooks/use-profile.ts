@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
 import { useAuth } from './use-auth'
 import { Database } from '../types/database'
+import { createClient } from '../lib/supabase/client'
 
 type Profile = Database['public']['Tables']['profiles']['Row']
 
@@ -11,6 +11,7 @@ export function useProfile() {
   const { user, loading: authLoading } = useAuth()
   const [loading, setLoading] = useState(true)
   const router = useRouter()
+  const supabase = createClient()
 
   useEffect(() => {
     const getProfile = async () => {
@@ -31,82 +32,55 @@ export function useProfile() {
 
         console.log('Authenticated user found:', user.id)
 
-        // Get profile through API route
-        console.log('Fetching profile from API for user:', user.id, '(attempt:', Date.now(), ')')
-        const response = await fetch('/api/profile', {
-          // Add credentials to ensure cookies are sent
-          credentials: 'include',
-          // Add cache control to prevent stale data
-          headers: {
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
-          }
-        })
-        
-        console.log('Profile API response:', {
-          status: response.status,
-          statusText: response.statusText,
-          headers: Object.fromEntries(response.headers.entries())
-        })
-        
-        if (response.ok) {
-          // Profile exists, use it
-          const profile = await response.json()
-          console.log('Existing profile found:', profile)
-          setProfile(profile)
+        // Get profile directly from Supabase
+        const { data: existingProfile, error: fetchError } = await supabase
+          .from('profiles')
+          .select()
+          .eq('id', user.id)
+          .single()
+
+        if (fetchError && fetchError.code !== 'PGRST116') {
+          throw fetchError
+        }
+
+        if (existingProfile) {
+          console.log('Existing profile found:', existingProfile)
+          setProfile(existingProfile)
           return
         }
-        
-        const responseText = await response.text()
-        console.log('Profile API response text:', responseText)
-        
-        // Try to parse as JSON if possible for better error logging
-        try {
-          const json = JSON.parse(responseText)
-          console.log('Profile API response parsed:', json)
-        } catch (e) {
-          // Not JSON, that's fine, we already logged the text
-        }
-        
-        if (response.status !== 404) {
-          // Unexpected error
-          throw new Error(`Failed to fetch profile: ${responseText}`)
-        }
-        
+
         // Profile doesn't exist, create new one
         console.log('No profile found, creating new profile...')
-        const createResponse = await fetch('/api/profile', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        })
-
-        if (!createResponse.ok) {
-          const errorText = await createResponse.text()
-          console.error('Failed to create profile:', errorText)
-          // Wait a bit and retry once
-          await new Promise(resolve => setTimeout(resolve, 1000))
-          const retryResponse = await fetch('/api/profile', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
+        const { data: newProfile, error: createError } = await supabase
+          .from('profiles')
+          .insert({
+            id: user.id,
+            title: null,
+            bio: null,
+            location: null,
+            years_experience: null,
+            skills: [],
+            industries: [],
+            education: [],
+            experience: [],
+            certifications: [],
+            desired_salary: null,
+            desired_location: null,
+            remote_only: false,
+            linkedin: null,
+            github: null,
+            portfolio: null,
           })
-          
-          if (!retryResponse.ok) {
-            console.error('Failed to create profile after retry:', await retryResponse.text())
-            throw new Error(`Failed to create profile: ${errorText}`)
-          }
-          
-          const newProfile = await retryResponse.json()
-          console.log('New profile created on retry:', newProfile)
-          setProfile(newProfile)
-        } else {
-          const newProfile = await createResponse.json()
-          console.log('New profile created:', newProfile)
-          setProfile(newProfile)
+          .select()
+          .single()
+
+        if (createError) {
+          console.error('Failed to create profile:', createError)
+          throw createError
         }
+
+        console.log('New profile created:', newProfile)
+        setProfile(newProfile)
       } catch (error) {
         console.error('Profile error:', error)
         // Reset loading state but keep profile null to trigger protected route handling
@@ -118,7 +92,7 @@ export function useProfile() {
 
     // Run getProfile when auth state changes
     getProfile()
-  }, [user, authLoading, router])
+  }, [user, authLoading, router, supabase])
 
   const updateProfile = async (updates: Partial<Profile>) => {
     try {
@@ -130,33 +104,20 @@ export function useProfile() {
       }
 
       console.log('Updating profile for user:', user.id)
-      const response = await fetch('/api/profile', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(updates),
-      })
+      const { data: updatedProfile, error } = await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('id', user.id)
+        .select()
+        .single()
 
-      const responseText = await response.text()
-      console.log('Update response:', {
-        status: response.status,
-        statusText: response.statusText,
-        text: responseText
-      })
-
-      if (!response.ok) {
-        throw new Error(`Failed to update profile: ${responseText}`)
+      if (error) {
+        throw error
       }
 
-      try {
-        const updatedProfile = JSON.parse(responseText)
-        console.log('Profile updated:', updatedProfile)
-        setProfile(updatedProfile)
-        return { profile: updatedProfile, error: null }
-      } catch (e) {
-        throw new Error('Invalid JSON in update response')
-      }
+      console.log('Profile updated:', updatedProfile)
+      setProfile(updatedProfile)
+      return { profile: updatedProfile, error: null }
     } catch (error) {
       console.error('Update error:', error)
       return { profile: null, error }

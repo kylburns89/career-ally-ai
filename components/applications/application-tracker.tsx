@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState } from "react"
 import { createClient } from "../../lib/supabase/client"
 import { Button } from "../ui/button"
 import {
@@ -41,9 +41,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs"
 import { Database } from "../../types/database"
 import { ApplicationFormState, ApplicationResponse } from "../../types/application"
-import { useResumes } from "../../hooks/use-resumes"
-import { useCoverLetters } from "../../hooks/use-cover-letters"
-import { useContacts } from "../../hooks/use-contacts"
 import ResumePreview from "../resume/resume-preview"
 import { CoverLetterPreview } from "../cover-letter/cover-letter-preview"
 import { ApplicationAnalyticsDashboard } from "./application-analytics"
@@ -52,34 +49,11 @@ import { toast } from "sonner"
 
 type ApplicationStatus = "applied" | "interviewing" | "offer" | "rejected"
 
-interface RawApplicationResponse {
-  id: string
-  user_id: string
-  company: string
-  job_title: string
-  status: string
-  applied_date: string
-  notes: string | null
-  resume_id: string | null
-  cover_letter_id: string | null
-  contact_id: string | null
-  created_at: string
-  updated_at: string
-  response_date: string | null
-  interview_date: string | null
-  offer_date: string | null
-  rejection_date: string | null
-  follow_up_dates: string[] | null
-  interview_feedback: string | null
-  salary_offered: number | null
-  application_method: string | null
-  application_source: string | null
-  interview_rounds: number
-  interview_types: string[] | null
-  skills_assessed: string[] | null
-  resumes: { name: string } | null
-  cover_letters: { name: string } | null
-  contacts: { name: string; title: string | null } | null
+interface ApplicationTrackerProps {
+  initialApplications: ApplicationResponse[]
+  initialResumes: { id: string; name: string }[]
+  initialCoverLetters: { id: string; name: string }[]
+  initialContacts: { id: string; name: string; title: string | null }[]
 }
 
 const statusColors = {
@@ -89,8 +63,13 @@ const statusColors = {
   rejected: "bg-red-500",
 }
 
-export function ApplicationTracker() {
-  const [applications, setApplications] = useState<ApplicationResponse[]>([])
+export function ApplicationTracker({
+  initialApplications,
+  initialResumes,
+  initialCoverLetters,
+  initialContacts,
+}: ApplicationTrackerProps) {
+  const [applications, setApplications] = useState<ApplicationResponse[]>(initialApplications)
   const [isOpen, setIsOpen] = useState(false)
   const [isEditMode, setIsEditMode] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -115,31 +94,6 @@ export function ApplicationTracker() {
   })
 
   const supabase = createClient()
-  const { resumes, isLoading: resumesLoading } = useResumes()
-  const { coverLetters, isLoading: coverLettersLoading } = useCoverLetters()
-  const { contacts, isLoading: contactsLoading } = useContacts()
-
-  const fetchApplications = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("applications")
-      .select("*, resumes(name), cover_letters(name), contacts(name, title)")
-      .order("created_at", { ascending: false })
-      .returns<RawApplicationResponse[]>()
-
-    if (error) {
-      console.error("Error fetching applications:", error)
-      toast.error("Failed to fetch applications")
-      return
-    }
-
-    if (data) {
-      setApplications(data as unknown as ApplicationResponse[])
-    }
-  }, [supabase])
-
-  useEffect(() => {
-    fetchApplications()
-  }, [fetchApplications])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -177,20 +131,27 @@ export function ApplicationTracker() {
     }
 
     let error;
+    let updatedApplication;
     if (isEditMode && newApplication.id) {
-      const { error: updateError } = await supabase
+      const { data, error: updateError } = await supabase
         .from("applications")
         .update(application)
         .eq("id", newApplication.id)
+        .select("*, resumes(name), cover_letters(name), contacts(name, title)")
+        .single()
       error = updateError
+      updatedApplication = data
       if (!error) {
         toast.success(`Updated application for ${application.job_title} at ${application.company}`)
       }
     } else {
-      const { error: insertError } = await supabase
+      const { data, error: insertError } = await supabase
         .from("applications")
         .insert([application])
+        .select("*, resumes(name), cover_letters(name), contacts(name, title)")
+        .single()
       error = insertError
+      updatedApplication = data
       if (!error) {
         toast.success(`Added new application for ${application.job_title} at ${application.company}`)
       }
@@ -200,6 +161,16 @@ export function ApplicationTracker() {
       console.error("Error saving application:", error)
       toast.error(error.message || "Failed to save application")
       return
+    }
+
+    if (updatedApplication) {
+      setApplications(prev => {
+        if (isEditMode) {
+          return prev.map(app => app.id === updatedApplication.id ? updatedApplication : app)
+        } else {
+          return [updatedApplication, ...prev]
+        }
+      })
     }
 
     setIsOpen(false)
@@ -218,7 +189,6 @@ export function ApplicationTracker() {
       interview_types: null,
       skills_assessed: null,
     })
-    fetchApplications()
   }
 
   const handleEdit = (application: ApplicationResponse) => {
@@ -267,10 +237,10 @@ export function ApplicationTracker() {
       return
     }
 
+    setApplications(prev => prev.filter(app => app.id !== applicationToDelete))
     toast.success("Application deleted successfully")
     setDeleteDialogOpen(false)
     setApplicationToDelete(null)
-    fetchApplications()
   }
 
   const handlePreviewResume = async (resumeId: string) => {
@@ -305,10 +275,6 @@ export function ApplicationTracker() {
 
     setSelectedCoverLetter(coverLetter)
     setShowCoverLetterPreview(true)
-  }
-
-  if (resumesLoading || coverLettersLoading || contactsLoading) {
-    return <div>Loading...</div>
   }
 
   return (
@@ -547,7 +513,7 @@ export function ApplicationTracker() {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="none">None</SelectItem>
-                            {resumes.map((resume) => (
+                            {initialResumes.map((resume) => (
                               <SelectItem key={resume.id} value={resume.id}>
                                 {resume.name}
                               </SelectItem>
@@ -571,7 +537,7 @@ export function ApplicationTracker() {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="none">None</SelectItem>
-                            {coverLetters.map((letter) => (
+                            {initialCoverLetters.map((letter) => (
                               <SelectItem key={letter.id} value={letter.id}>
                                 {letter.name}
                               </SelectItem>
@@ -595,7 +561,7 @@ export function ApplicationTracker() {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="none">None</SelectItem>
-                            {contacts.map((contact) => (
+                            {initialContacts.map((contact) => (
                               <SelectItem key={contact.id} value={contact.id}>
                                 {contact.name} {contact.title ? `(${contact.title})` : ""}
                               </SelectItem>

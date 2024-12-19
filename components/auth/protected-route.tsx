@@ -12,49 +12,44 @@ export default function ProtectedRoute({
   children: React.ReactNode
 }) {
   const router = useRouter()
-  const { user, loading: authLoading } = useAuth()
+  const { user } = useAuth()
   const { profile, loading: profileLoading } = useProfile()
   const [isCheckingProfile, setIsCheckingProfile] = useState(false)
 
   useEffect(() => {
-    // Handle authentication redirects
-    if (!authLoading && !user) {
-      const currentPath = window.location.pathname
-      if (currentPath !== '/auth/login') {
-        const redirectUrl = new URL('/auth/login', window.location.origin)
-        redirectUrl.searchParams.set('redirectTo', currentPath)
-        router.push(redirectUrl.toString())
-        return
-      }
-    }
-
-    // Handle profile check and redirect
+    // Only handle profile checks since middleware handles auth
     if (user && !profile && !profileLoading && !isCheckingProfile) {
       setIsCheckingProfile(true)
       
       fetch('/api/profile')
         .then(response => {
           if (!response.ok && response.status === 404) {
-            router.push('/settings/profile')
+            const currentPath = window.location.pathname
+            const setupUrl = new URL('/settings/profile', window.location.origin)
+            setupUrl.searchParams.set('redirectTo', currentPath)
+            router.push(setupUrl.toString())
           }
         })
         .catch(() => {
-          // If profile check fails, assume we need to create one
-          router.push('/settings/profile')
+          // If profile check fails, redirect to profile setup
+          const currentPath = window.location.pathname
+          const setupUrl = new URL('/settings/profile', window.location.origin)
+          setupUrl.searchParams.set('redirectTo', currentPath)
+          router.push(setupUrl.toString())
         })
         .finally(() => {
           setIsCheckingProfile(false)
         })
     }
-  }, [user, authLoading, profile, profileLoading, router, isCheckingProfile])
+  }, [user, profile, profileLoading, router, isCheckingProfile])
 
-  // Show loading state while checking auth, profile, or during profile verification
-  if (authLoading || profileLoading || isCheckingProfile) {
+  // Show loading state while checking profile
+  if (profileLoading || isCheckingProfile) {
     return <LoadingPage />
   }
 
-  // Only render children if we have both user and profile
-  if (user && profile) {
+  // Only render children if we have a profile
+  if (profile) {
     return <>{children}</>
   }
 
