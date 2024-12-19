@@ -14,30 +14,45 @@ function createErrorUrl(request: NextRequest, message: string): URL {
 async function verifySession(supabase: ReturnType<typeof createClient>) {
   const maxRetries = 3;
   const retryDelay = 1000; // 1 second
+  const timeout = 10000; // 10 second timeout
 
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      // Add a delay before checking (skip delay on first try)
-      if (i > 0) {
-        await new Promise(resolve => setTimeout(resolve, retryDelay));
+  const timeoutPromise = new Promise((_, reject) => 
+    setTimeout(() => reject(new Error('Session verification timed out')), timeout)
+  );
+
+  const verifyPromise = (async () => {
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        // Add a delay before checking (skip delay on first try)
+        if (i > 0) {
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+        }
+
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        if (sessionError) throw sessionError
+        if (!session) throw new Error('No session established')
+        
+        const { data: { user }, error: userError } = await supabase.auth.getUser()
+        if (userError) throw userError
+        if (!user) throw new Error('No user found')
+        
+        return { user, session }
+      } catch (error) {
+        if (i === maxRetries - 1) throw error; // Throw on last retry
+        console.warn(`Session verification attempt ${i + 1} failed, retrying...`);
       }
-
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-      if (sessionError) throw sessionError
-      if (!session) throw new Error('No session established')
-      
-      const { data: { user }, error: userError } = await supabase.auth.getUser()
-      if (userError) throw userError
-      if (!user) throw new Error('No user found')
-      
-      return { user, session }
-    } catch (error) {
-      if (i === maxRetries - 1) throw error; // Throw on last retry
-      console.warn(`Session verification attempt ${i + 1} failed, retrying...`);
     }
-  }
+    throw new Error('Session verification failed after all retries');
+  })();
 
-  throw new Error('Session verification failed after all retries');
+  try {
+    return await Promise.race([verifyPromise, timeoutPromise]);
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Session verification timed out') {
+      console.error('Session verification timed out');
+    }
+    throw error;
+  }
 }
 
 // Helper to check/create user profile
