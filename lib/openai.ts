@@ -1,12 +1,10 @@
-import OpenAI from 'openai'
 import Together from "together-ai"
 import { CoreMessage, streamText } from 'ai'
 import { createOpenAI } from '@ai-sdk/openai'
 
-// Standard OpenAI client for non-streaming operations
-export const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+if (!process.env.TOGETHER_API_KEY) {
+  throw new Error('Missing TOGETHER_API_KEY environment variable');
+}
 
 // Together.ai client for streaming chat operations
 const togetherStream = createOpenAI({
@@ -19,9 +17,12 @@ const together = new Together({
   apiKey: process.env.TOGETHER_API_KEY ?? "",
 });
 
-interface OpenAIOptions {
-  model: string
-  temperature: number
+// Default model for Together.ai
+const DEFAULT_MODEL = "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo";
+
+interface TogetherOptions {
+  model?: string
+  temperature?: number
   response_format?: {
     type: 'json_object'
   }
@@ -46,15 +47,15 @@ export async function createStreamingChatResponse(
   })
 }
 
-// Helper for non-streaming Together.ai chat completions
-export async function createTogetherCompletion(
+// Helper for chat completions (replaces both createTogetherCompletion and createChatCompletion)
+export async function createChatCompletion(
   messages: ChatMessage[],
-  temperature: number = 0.7
+  options: TogetherOptions = {}
 ) {
   const response = await together.chat.completions.create({
-    model: "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
+    model: options.model || DEFAULT_MODEL,
     messages,
-    temperature,
+    temperature: options.temperature || 0.7,
     max_tokens: 4000,
   });
 
@@ -70,48 +71,15 @@ export async function createTogetherCompletion(
   return content;
 }
 
-// For non-streaming OpenAI chat completions
-export async function createChatCompletion(
-  messages: ChatMessage[],
-  options: { model: string; temperature: number }
-) {
-  const response = await openai.chat.completions.create({
-    messages: messages as any, // Type assertion needed due to OpenAI types being more specific
-    model: options.model,
-    temperature: options.temperature,
-  })
-
-  if (!response.choices?.length) {
-    throw new Error('No choices returned from OpenAI')
-  }
-
-  const content = response.choices[0].message.content
-  if (!content) {
-    throw new Error('No content generated from OpenAI')
-  }
-
-  return content
-}
-
 export async function generateCareerPath(
   prompt: string,
-  options: OpenAIOptions
+  options: TogetherOptions = {}
 ): Promise<string> {
-  const response = await openai.chat.completions.create({
-    messages: [{ role: 'user', content: prompt }] as any,
-    model: options.model,
-    temperature: options.temperature,
-    response_format: options.response_format,
-  })
-
-  if (!response.choices?.length) {
-    throw new Error('No choices returned from OpenAI')
-  }
-
-  const content = response.choices[0].message.content
-  if (!content) {
-    throw new Error('No content generated')
-  }
-
-  return content
+  return createChatCompletion(
+    [{ role: 'user', content: prompt }],
+    {
+      model: options.model || DEFAULT_MODEL,
+      temperature: options.temperature || 0.7,
+    }
+  );
 }

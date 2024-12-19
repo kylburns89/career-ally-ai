@@ -32,8 +32,8 @@ export function MFAChallenge({ factors, redirectTo = '/' }: MFAChallengeProps) {
     setLoading(true)
     try {
       if (!factor) throw new Error('No TOTP factor available')
-      const { error: verifyError } = await verifyMFA(factor.id, verificationCode.trim())
-      if (verifyError) throw new Error(verifyError)
+      const result = await verifyMFA(factor.id, verificationCode.trim())
+      if ('error' in result) throw new Error(result.error)
       router.push(redirectTo)
     } catch (err: any) {
       setError('Invalid verification code. Please try again.')

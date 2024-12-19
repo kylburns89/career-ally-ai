@@ -20,13 +20,13 @@ export function MFASetup({ redirectTo = '/' }: { redirectTo?: string }) {
 
   const handleSetup = async () => {
     try {
-      const { data, error } = await enrollMFA()
-      if (error) throw new Error(error)
-      if (!data) throw new Error('Failed to enroll TOTP')
+      const result = await enrollMFA()
+      if ('error' in result) throw new Error(result.error)
+      if (!result.data) throw new Error('Failed to enroll TOTP')
       
-      setFactorId(data.id)
-      setQrCode(data.totp.qr_code)
-      setSecret(data.totp.secret)
+      setFactorId(result.data.id)
+      setQrCode(result.data.totp.qr_code)
+      setSecret(result.data.totp.secret)
       setStep('verify')
     } catch (err: any) {
       setError('Failed to set up MFA. Please try again.')
@@ -36,8 +36,8 @@ export function MFASetup({ redirectTo = '/' }: { redirectTo?: string }) {
 
   const handleVerify = async () => {
     try {
-      const { error } = await verifyMFA(factorId, verificationCode)
-      if (error) throw new Error(error)
+      const result = await verifyMFA(factorId, verificationCode)
+      if ('error' in result) throw new Error(result.error)
       router.push(redirectTo)
     } catch (err: any) {
       setError('Invalid verification code. Please try again.')

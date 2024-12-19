@@ -1,6 +1,6 @@
-import { createClient } from '../../../lib/supabase/server'
 import { type EmailOtpType } from '@supabase/supabase-js'
 import { type NextRequest, NextResponse } from 'next/server'
+import { createClient } from '../../../lib/supabase/server'
 import { cookies } from 'next/headers'
 
 // Helper to create error redirect URL with message
@@ -46,48 +46,39 @@ async function ensureUserProfile(request: NextRequest) {
 export async function GET(request: NextRequest) {
   const supabase = createClient()
   const { searchParams } = new URL(request.url)
-  const code = searchParams.get('code')
   const token_hash = searchParams.get('token_hash')
   const type = searchParams.get('type') as EmailOtpType | null
   const next = searchParams.get('next') ?? '/'
 
   try {
-    if (code) {
-      // Handle OAuth or magic link flow
-      const { error } = await supabase.auth.exchangeCodeForSession(code)
-      if (error) throw error
-
-      await verifySession(supabase)
-      
-      // Check if user needs to set up profile
-      const profileRedirect = await ensureUserProfile(request)
-      if (profileRedirect) {
-        return NextResponse.redirect(profileRedirect)
-      }
-
-      return NextResponse.redirect(new URL(next, request.url))
-    } 
-    
-    if (token_hash && type) {
-      // Handle email confirmation flow
-      const { error } = await supabase.auth.verifyOtp({ type, token_hash })
-      if (error) throw error
-
-      await verifySession(supabase)
-      
-      // For email confirmations, always redirect to profile setup first
-      const setupUrl = new URL('/settings/profile', request.url)
-      setupUrl.searchParams.set('redirectTo', next)
-      return NextResponse.redirect(setupUrl)
+    if (!token_hash || !type) {
+      throw new Error('Missing verification parameters')
     }
 
-    throw new Error('No authentication parameters found')
+    // Verify the OTP
+    const { error } = await supabase.auth.verifyOtp({
+      type,
+      token_hash,
+    })
+    if (error) throw error
+
+    // Verify session was established
+    await verifySession(supabase)
+
+    // For email confirmations, always check profile first
+    const profileRedirect = await ensureUserProfile(request)
+    if (profileRedirect) {
+      return NextResponse.redirect(profileRedirect)
+    }
+
+    // All good, redirect to the next page
+    return NextResponse.redirect(new URL(next, request.url))
   } catch (error) {
-    console.error('Auth callback error:', error)
+    console.error('Email confirmation error:', error)
     return NextResponse.redirect(
       createErrorUrl(
         request,
-        error instanceof Error ? error.message : 'Authentication failed'
+        error instanceof Error ? error.message : 'Email confirmation failed'
       )
     )
   }

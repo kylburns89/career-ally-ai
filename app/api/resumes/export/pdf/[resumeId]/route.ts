@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { jsPDF, type jsPDFOptions } from "jspdf";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createServerClient } from "@supabase/ssr";
+import { ResponseCookie } from 'next/dist/compiled/@edge-runtime/cookies';
 import { cookies } from "next/headers";
-import type { Database } from "@/types/database";
-import type { Resume, ResumeContent, Template } from "@/types/resume";
+import type { Database } from '../../../../../../types/database';
+import type { Resume, ResumeContent, Template } from '../../../../../../types/resume';
 
 // Constants for PDF generation
 const PAGE = {
@@ -258,7 +259,38 @@ export async function GET(
       console.log("Starting PDF export for resume:", params.resumeId);
       
       const cookieStore = cookies();
-      const supabase = createRouteHandlerClient<Database>({ cookies: () => cookieStore });
+      const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+          cookies: {
+            get(name: string) {
+              return cookieStore.get(name)?.value;
+            },
+            set(name: string, value: string, options: Partial<ResponseCookie>) {
+              cookieStore.set({
+                name,
+                value,
+                ...options,
+                // Ensure secure cookies in production
+                secure: process.env.NODE_ENV === 'production',
+                // Support OAuth flows
+                sameSite: 'lax',
+                // Set path to root
+                path: '/',
+              });
+            },
+            remove(name: string, options: Partial<ResponseCookie>) {
+              cookieStore.set({
+                name,
+                value: '',
+                ...options,
+                maxAge: 0,
+              });
+            },
+          },
+        }
+      );
       
       // Get session
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();

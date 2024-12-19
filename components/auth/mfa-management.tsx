@@ -32,8 +32,8 @@ export function MFAManagement() {
 
   const handleUnenroll = async (factorId: string) => {
     try {
-      const { error: unenrollError } = await unenrollMFA(factorId)
-      if (unenrollError) throw new Error(unenrollError)
+      const result = await unenrollMFA(factorId)
+      if ('error' in result) throw new Error(result.error)
       await loadFactors() // Refresh the list
     } catch (err: any) {
       setError('Failed to remove factor')

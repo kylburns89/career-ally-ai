@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createChatCompletion } from "@/lib/openai";
+import { createChatCompletion } from "../../../lib/openai";
 
 const systemPrompt = `You are an expert cover letter writer with years of experience in professional writing and recruitment. 
 Your task is to create compelling, personalized cover letters that effectively showcase the candidate's relevant experience and skills for the specific job they're applying to.
@@ -17,7 +17,7 @@ Guidelines for cover letter generation:
 
 // Helper function to estimate tokens (rough estimate)
 function estimateTokenCount(text: string): number {
-  // GPT models typically use ~4 characters per token
+  // LLaMA models typically use ~4 characters per token
   return Math.ceil(text.length / 4);
 }
 
@@ -79,7 +79,7 @@ Focus on matching the candidate's most relevant experiences with the job require
         { role: "system", content: systemPrompt },
         { role: "user", content: prompt }
       ],
-      { model: "gpt-3.5-turbo", temperature: 0.7 }
+      { temperature: 0.7 }
     );
 
     return NextResponse.json({ coverLetter });

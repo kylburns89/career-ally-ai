@@ -1,9 +1,9 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { useAuth } from "@/hooks/use-auth"
-import { useProfile } from "@/hooks/use-profile"
+import { useAuth } from "../../hooks/use-auth"
+import { useProfile } from "../../hooks/use-profile"
 import { LoadingPage } from "../loading"
 
 export default function ProtectedRoute({
@@ -14,32 +14,50 @@ export default function ProtectedRoute({
   const router = useRouter()
   const { user, loading: authLoading } = useAuth()
   const { profile, loading: profileLoading } = useProfile()
+  const [isCheckingProfile, setIsCheckingProfile] = useState(false)
 
   useEffect(() => {
+    // Handle authentication redirects
     if (!authLoading && !user) {
-      // Store the current path for redirect after login
       const currentPath = window.location.pathname
       if (currentPath !== '/auth/login') {
         const redirectUrl = new URL('/auth/login', window.location.origin)
         redirectUrl.searchParams.set('redirectTo', currentPath)
         router.push(redirectUrl.toString())
-      } else {
-        router.push('/auth/login')
+        return
       }
     }
-  }, [user, authLoading, router])
 
-  // Show loading state while checking auth and loading profile
-  if (authLoading || profileLoading) {
+    // Handle profile check and redirect
+    if (user && !profile && !profileLoading && !isCheckingProfile) {
+      setIsCheckingProfile(true)
+      
+      fetch('/api/profile')
+        .then(response => {
+          if (!response.ok && response.status === 404) {
+            router.push('/settings/profile')
+          }
+        })
+        .catch(() => {
+          // If profile check fails, assume we need to create one
+          router.push('/settings/profile')
+        })
+        .finally(() => {
+          setIsCheckingProfile(false)
+        })
+    }
+  }, [user, authLoading, profile, profileLoading, router, isCheckingProfile])
+
+  // Show loading state while checking auth, profile, or during profile verification
+  if (authLoading || profileLoading || isCheckingProfile) {
     return <LoadingPage />
   }
 
-  // If we have both a user and profile, render the protected content
+  // Only render children if we have both user and profile
   if (user && profile) {
     return <>{children}</>
   }
 
-  // This return is needed for TypeScript, but should never be shown
-  // because we either show loading state or redirect to login
-  return null
+  // Show loading while redirecting
+  return <LoadingPage />
 }

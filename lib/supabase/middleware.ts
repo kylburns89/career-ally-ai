@@ -1,18 +1,31 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { type NextRequest, NextResponse } from 'next/server'
 
-// List of public routes that don't require authentication
-const publicRoutes = ['/', '/about', '/auth/login', '/auth/signup', '/auth/callback', '/auth/verify', '/auth/error']
+// Routes that don't require authentication
+const publicPatterns = [
+  // Static pages
+  /^\/$/,  // Landing page
+  /^\/about\/?$/,  // About page
+  // Auth routes
+  /^\/auth\/(login|signup|callback|verify|error|confirm|check-email)\/?$/,
+  // Static assets and Next.js internals
+  /^\/_next\//,
+  /^\/api\/auth\//,
+  /\.(ico|png|jpg|jpeg|gif|svg|webp)$/,
+]
 
-// Check if the route is public
-function isPublicRoute(pathname: string): boolean {
-  return publicRoutes.includes(pathname) || 
-         pathname.startsWith('/_next') || 
-         pathname.startsWith('/api/auth') ||
-         pathname.match(/\.(ico|png|jpg|jpeg|gif|svg|webp)$/) !== null
+// API routes that need session but shouldn't redirect
+const apiPatterns = [
+  /^\/api\/(profile|jobs|resumes|cover-letter|career-path|market-analysis|salary-coach|learning-path|challenges|interview|chat)\/?/
+]
+
+function matchesPattern(pathname: string, patterns: RegExp[]): boolean {
+  return patterns.some(pattern => pattern.test(pathname))
 }
 
 export async function updateSession(request: NextRequest) {
+  const pathname = request.nextUrl.pathname
+  
   // Create a response to modify
   let response = NextResponse.next({
     request: {
@@ -20,8 +33,13 @@ export async function updateSession(request: NextRequest) {
     },
   })
 
+  // If it's a public route, no need to check auth
+  if (matchesPattern(pathname, publicPatterns)) {
+    return response
+  }
+
   try {
-    // Create a Supabase client using the request cookies
+    // Create Supabase client with simplified cookie handling
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -31,34 +49,26 @@ export async function updateSession(request: NextRequest) {
             return request.cookies.get(name)?.value
           },
           set(name: string, value: string, options: CookieOptions) {
-            // If the cookie is updated, update the response
             response.cookies.set({
               name,
               value,
               ...options,
               secure: process.env.NODE_ENV === 'production',
               path: '/',
-              // Use strict sameSite policy for better security
-              sameSite: 'strict',
-              // Set appropriate maxAge for different token types
+              sameSite: 'lax', // Changed to lax to better support OAuth flows
               maxAge: name.includes('access_token') 
                 ? 3600 // 1 hour for access tokens
                 : name.includes('refresh_token')
                 ? 30 * 24 * 3600 // 30 days for refresh tokens
-                : undefined,
-              domain: undefined
+                : undefined
             })
           },
           remove(name: string, options: CookieOptions) {
             response.cookies.set({
               name,
               value: '',
-              ...options,
-              secure: process.env.NODE_ENV === 'production',
-              path: '/',
-              sameSite: 'strict',
               maxAge: 0,
-              domain: undefined
+              path: '/',
             })
           },
         },
@@ -70,44 +80,38 @@ export async function updateSession(request: NextRequest) {
       }
     )
 
-    // IMPORTANT: Use getUser() instead of getSession() in middleware
-    // getUser() sends a request to Supabase Auth server to revalidate the token
-    const { data: { user }, error } = await supabase.auth.getUser()
+    // Check auth state
+    const { data: { user } } = await supabase.auth.getUser()
 
-    // If the route is public, just update the session and return
-    if (isPublicRoute(request.nextUrl.pathname)) {
+    // For API routes, allow the request but with session context
+    if (matchesPattern(pathname, apiPatterns)) {
       return response
     }
 
-    // For protected routes, check if we have a valid user
-    if (error || !user) {
-      // If there was an error or no user, clear any invalid session cookies
-      const authCookies = [
-        'sb-access-token',
-        'sb-refresh-token',
-        'sb-auth-token',
-        'supabase-auth-token'
-      ]
-      
-      authCookies.forEach(name => {
-        response.cookies.delete(name)
+    // For protected routes, redirect to login if no user
+    if (!user) {
+      // Clear any invalid session cookies
+      ['sb-access-token', 'sb-refresh-token'].forEach(name => {
+        response.cookies.set({
+          name,
+          value: '',
+          maxAge: 0,
+          path: '/',
+        })
       })
 
       // Store the original URL to redirect back after login
       const redirectUrl = new URL('/auth/login', request.url)
-      redirectUrl.searchParams.set('redirectTo', request.nextUrl.pathname)
+      redirectUrl.searchParams.set('redirectTo', pathname)
       return NextResponse.redirect(redirectUrl)
     }
 
-    // User is authenticated, allow access to protected route
     return response
   } catch (error) {
-    console.error('Auth middleware error:', error)
-    
-    // On error, redirect to login if not on a public route
-    if (!isPublicRoute(request.nextUrl.pathname)) {
+    // On error, only redirect if not on a public route
+    if (!matchesPattern(pathname, publicPatterns)) {
       const redirectUrl = new URL('/auth/login', request.url)
-      redirectUrl.searchParams.set('redirectTo', request.nextUrl.pathname)
+      redirectUrl.searchParams.set('redirectTo', pathname)
       return NextResponse.redirect(redirectUrl)
     }
     

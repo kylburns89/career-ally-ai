@@ -1,10 +1,12 @@
-import { OpenAI } from "openai";
-import type { ResumeContent, ResumeAnalysis } from "@/types/resume";
-import { openai } from "@/lib/openai";
-import { createClient } from "@/lib/supabase/client";
-import type { Json } from "@/types/database";
+import type { ResumeContent, ResumeAnalysis } from '../../../types/resume';
+import { createChatCompletion } from '../../../lib/openai';
+import { createClient } from '@supabase/supabase-js';
+import type { Json } from '../../../types/database';
 
-const supabase = createClient();
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 const ANALYSIS_PROMPT = `Analyze the following resume and provide detailed feedback in the following areas:
 1. Overall quality and impact
@@ -47,10 +49,9 @@ export async function POST(request: Request) {
       }
     }
 
-    // Perform GPT analysis
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4",
-      messages: [
+    // Perform analysis using Together.ai
+    const analysis = await createChatCompletion(
+      [
         {
           role: "system",
           content: "You are an expert resume analyzer with deep knowledge of ATS systems, industry standards, and hiring practices.",
@@ -60,17 +61,15 @@ export async function POST(request: Request) {
           content: `${ANALYSIS_PROMPT}${JSON.stringify(resume)}`,
         },
       ],
-      temperature: 0.7,
-      max_tokens: 2000,
-    });
+      { temperature: 0.7 }
+    );
 
     // Parse and structure the analysis
-    const rawAnalysis = completion.choices[0].message.content || "";
-    const analysis = structureAnalysis(rawAnalysis);
+    const structuredAnalysis = structureAnalysis(analysis);
 
     // Cache the results
     const resumeJson: Json = JSON.parse(JSON.stringify(resume));
-    const analysisJson: Json = JSON.parse(JSON.stringify(analysis));
+    const analysisJson: Json = JSON.parse(JSON.stringify(structuredAnalysis));
 
     await supabase.from("resume_analyses").upsert({
       resume_id: resumeId,
@@ -81,18 +80,10 @@ export async function POST(request: Request) {
     });
 
     // Return the analysis
-    return Response.json({ analysis });
+    return Response.json({ analysis: structuredAnalysis });
   } catch (error) {
     console.error("Error analyzing resume:", error);
     
-    // Provide specific error messages based on the type of error
-    if (error instanceof OpenAI.APIError) {
-      return Response.json(
-        { error: "AI service temporarily unavailable. Please try again later." },
-        { status: 503 }
-      );
-    }
-
     if (error instanceof Error) {
       return Response.json(
         { error: error.message },

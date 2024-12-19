@@ -1,14 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { useProfile } from '@/hooks/use-profile';
-import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
-import { useToast } from '@/components/ui/use-toast';
-import { PageContainer } from '@/components/page-container';
-import { LoadingPage } from '@/components/loading';
+import { useProfile } from '../../../hooks/use-profile';
+import { Card } from '../../../components/ui/card';
+import { Input } from '../../../components/ui/input';
+import { Label } from '../../../components/ui/label';
+import { Button } from '../../../components/ui/button';
+import { useToast } from '../../../hooks/use-toast';
+import { PageContainer } from '../../../components/page-container';
+import { LoadingPage } from '../../../components/loading';
 
 export default function ProfileSettings() {
   const { profile, loading, updateProfile } = useProfile();

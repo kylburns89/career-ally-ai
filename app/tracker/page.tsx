@@ -1,6 +1,6 @@
 import { Metadata } from "next"
-import { ApplicationTracker } from "@/components/applications/application-tracker"
-import ProtectedRoute from "@/components/auth/protected-route"
+import { ApplicationTracker } from "../../components/applications/application-tracker"
+import ProtectedRoute from "../../components/auth/protected-route"
 
 export const metadata: Metadata = {
   title: "Application Tracker",

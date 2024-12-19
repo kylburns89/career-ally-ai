@@ -1,128 +1,145 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '../../lib/supabase/server'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { getURL } from '@/lib/utils'
 
-export async function signIn(formData: FormData) {
-  // Call cookies() before any Supabase operations to opt out of caching
-  const cookieStore = cookies()
-  const redirectTo = cookieStore.get('redirectTo')?.value || '/'
-  
-  const supabase = createClient()
-  
-  const { error } = await supabase.auth.signInWithPassword({
-    email: formData.get('email') as string,
-    password: formData.get('password') as string,
-  })
+export type AuthSuccess = { success: true; redirectTo: string }
+export type AuthError = { error: string }
+export type AuthResult = AuthSuccess | AuthError
 
-  if (error) {
-    return { error: error.message }
-  }
-
-  // Verify the user is authenticated using getUser() instead of getSession()
-  // This is more secure as it validates the token with the Supabase Auth server
-  const { data: { user }, error: userError } = await supabase.auth.getUser()
-  if (userError || !user) {
-    return { error: userError?.message || 'Authentication failed' }
-  }
-
-  // Ensure session is properly set
-  const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-  if (sessionError || !session) {
-    return { error: sessionError?.message || 'Failed to establish session' }
-  }
-
-  // Clear the redirect cookie
-  cookieStore.delete('redirectTo')
-  
-  redirect(redirectTo)
+// Helper to get base URL for redirects
+function getURL() {
+  let url = process?.env?.NEXT_PUBLIC_SITE_URL ?? 
+    process?.env?.NEXT_PUBLIC_VERCEL_URL ?? 
+    'http://localhost:3000/'
+  // Make sure to include `https://` when not localhost.
+  url = url.includes('http') ? url : `https://${url}`
+  // Make sure to include trailing `/`.
+  url = url.charAt(url.length - 1) === '/' ? url : `${url}/`
+  return url
 }
 
-export async function signOut() {
-  // Call cookies() before any Supabase operations to opt out of caching
+// Helper to handle auth errors consistently
+function handleAuthError(error: Error | null): AuthError {
+  console.error('Auth error:', error)
+  return { error: error?.message || 'An unknown error occurred' }
+}
+
+// Helper to clear auth cookies
+function clearAuthCookies() {
   const cookieStore = cookies()
-  const supabase = createClient()
-
-  // Sign out from Supabase auth
-  const { error } = await supabase.auth.signOut()
-  if (error) {
-    return { error: error.message }
-  }
-
-  // Clear all auth-related cookies
   const authCookies = [
     'sb-access-token',
     'sb-refresh-token',
-    'sb-auth-token',
-    'supabase-auth-token',
     'redirectTo'
   ]
   
+  // Clear specific auth cookies
   authCookies.forEach(name => {
     cookieStore.delete(name)
   })
 
-  // Clear any other session data
+  // Clear any other Supabase-related cookies
   cookieStore.getAll().forEach(cookie => {
     if (cookie.name.startsWith('sb-') || cookie.name.includes('supabase')) {
       cookieStore.delete(cookie.name)
     }
   })
+}
 
-  redirect('/auth/login')
+export async function signIn(formData: FormData) {
+  const cookieStore = cookies()
+  const redirectTo = cookieStore.get('redirectTo')?.value || '/'
+  
+  const supabase = createClient()
+  
+  try {
+    // Attempt sign in
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: formData.get('email') as string,
+      password: formData.get('password') as string,
+    })
+    if (signInError) throw signInError
+
+    // Verify authentication
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (userError || !user) throw userError || new Error('Authentication failed')
+
+    // Verify session
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    if (sessionError || !session) throw sessionError || new Error('Failed to establish session')
+
+    // Clear redirect cookie
+    cookieStore.delete('redirectTo')
+    
+    // Return success with redirect URL
+    return { success: true as const, redirectTo }
+  } catch (error) {
+    return handleAuthError(error as Error)
+  }
+}
+
+export async function signOut() {
+  const supabase = createClient()
+
+  try {
+    const { error } = await supabase.auth.signOut()
+    if (error) throw error
+    
+    clearAuthCookies()
+    return { success: true as const, redirectTo: '/auth/login' }
+  } catch (error) {
+    return handleAuthError(error as Error)
+  }
 }
 
 export async function signUp(formData: FormData) {
-  // Call cookies() before any Supabase operations to opt out of caching
-  cookies()
   const supabase = createClient()
 
-  const { error } = await supabase.auth.signUp({
-    email: formData.get('email') as string,
-    password: formData.get('password') as string,
-    options: {
-      emailRedirectTo: `${getURL()}auth/callback?next=/`,
-    },
-  })
+  try {
+    const { error } = await supabase.auth.signUp({
+      email: formData.get('email') as string,
+      password: formData.get('password') as string,
+      options: {
+        emailRedirectTo: `${getURL()}auth/callback?next=/`,
+      },
+    })
+    if (error) throw error
 
-  if (error) {
-    return { error: error.message }
+    return { success: true as const, redirectTo: '/auth/verify' }
+  } catch (error) {
+    return handleAuthError(error as Error)
   }
-
-  redirect('/auth/verify')
 }
 
 export async function signInWithOAuth(provider: 'github' | 'google') {
-  // Call cookies() before any Supabase operations to opt out of caching
-  cookies()
   const supabase = createClient()
   
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider,
-    options: {
-      redirectTo: `${getURL()}auth/callback`,
-      queryParams: {
-        access_type: 'offline',
-        prompt: 'consent',
+  try {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: `${getURL()}auth/callback`,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
       },
-    },
-  })
+    })
+    if (error) throw error
 
-  if (error) {
-    return { error: error.message }
-  }
-
-  if (data.url) {
-    redirect(data.url)
+    if (data.url) {
+      return { success: true as const, redirectTo: data.url }
+    }
+    throw new Error('No OAuth URL returned')
+  } catch (error) {
+    return handleAuthError(error as Error)
   }
 }
 
 // MFA-related server actions
 export async function enrollMFA() {
-  // Call cookies() before any Supabase operations to opt out of caching
-  cookies()
   const supabase = createClient()
   
   try {
@@ -131,14 +148,12 @@ export async function enrollMFA() {
     })
     if (error) throw error
     return { data }
-  } catch (error: any) {
-    return { error: error.message }
+  } catch (error) {
+    return handleAuthError(error as Error)
   }
 }
 
 export async function verifyMFA(factorId: string, code: string) {
-  // Call cookies() before any Supabase operations to opt out of caching
-  cookies()
   const supabase = createClient()
   
   try {
@@ -148,21 +163,19 @@ export async function verifyMFA(factorId: string, code: string) {
     })
     if (error) throw error
     return { data }
-  } catch (error: any) {
-    return { error: error.message }
+  } catch (error) {
+    return handleAuthError(error as Error)
   }
 }
 
 export async function unenrollMFA(factorId: string) {
-  // Call cookies() before any Supabase operations to opt out of caching
-  cookies()
   const supabase = createClient()
   
   try {
     const { data, error } = await supabase.auth.mfa.unenroll({ factorId })
     if (error) throw error
     return { data }
-  } catch (error: any) {
-    return { error: error.message }
+  } catch (error) {
+    return handleAuthError(error as Error)
   }
 }

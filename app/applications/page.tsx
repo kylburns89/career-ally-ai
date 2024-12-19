@@ -1,5 +1,5 @@
 import { Metadata } from "next"
-import { ApplicationTracker } from "@/components/applications/application-tracker"
+import { ApplicationTracker } from "../../components/applications/application-tracker"
 
 export const metadata: Metadata = {
   title: "Application Tracker",

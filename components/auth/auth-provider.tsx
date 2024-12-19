@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { createClient } from '../../lib/supabase/client';
 import { User, Session, AuthChangeEvent } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 
@@ -27,95 +27,84 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    // Initialize auth state
-    const initializeAuth = async () => {
-      try {
-        // First get the session
-        const { data: { session: initialSession } } = await supabase.auth.getSession();
-        
-        if (initialSession) {
-          // IMPORTANT: Always verify the user with getUser()
-          // This ensures the token is valid by checking with the Supabase Auth server
-          const { data: { user: verifiedUser }, error: userError } = await supabase.auth.getUser();
-          
-          if (userError) {
-            console.error('Error verifying user:', userError);
-            // Clear invalid session state
-            setUser(null);
-            setSession(null);
-            await supabase.auth.signOut();
-          } else if (verifiedUser) {
-            // User is verified, set the state
-            setUser(verifiedUser);
-            setSession(initialSession);
-          } else {
-            // No verified user found
-            setUser(null);
-            setSession(null);
-            await supabase.auth.signOut();
-          }
-        } else {
-          // No session found
-          setUser(null);
-          setSession(null);
-        }
-      } catch (error) {
-        console.error('Error initializing auth:', error);
-        // On error, clear state
-        setUser(null);
-        setSession(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    initializeAuth();
-
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, currentSession: Session | null) => {
-      console.log('Auth state change:', event);
-      
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+    // Initialize auth state and set up listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event: AuthChangeEvent, currentSession: Session | null) => {
         try {
-          // Always verify the user with getUser() on auth state changes
-          const { data: { user: verifiedUser }, error: userError } = await supabase.auth.getUser();
-          
-          if (userError) {
-            console.error('Error verifying user:', userError);
+          if (event === 'INITIAL_SESSION') {
+            // Initial load - just set the session state
+            if (currentSession) {
+              const { data: { user: verifiedUser } } = await supabase.auth.getUser();
+              setUser(verifiedUser);
+              setSession(currentSession);
+            }
+            setLoading(false);
+            return;
+          }
+
+          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+            const { data: { user: verifiedUser } } = await supabase.auth.getUser();
+            if (verifiedUser) {
+              setUser(verifiedUser);
+              setSession(currentSession);
+              router.refresh();
+            } else {
+              throw new Error('No verified user found');
+            }
+          } else if (event === 'SIGNED_OUT') {
             setUser(null);
             setSession(null);
-            await supabase.auth.signOut();
-            router.push('/auth/login');
-          } else if (verifiedUser) {
-            setUser(verifiedUser);
-            setSession(currentSession);
-            // Force a router refresh to update server state
+            
+            // Check if we're on a protected route
+            const pathname = window.location.pathname;
+            const isPublicRoute = ['/', '/about'].includes(pathname) || 
+                                pathname.startsWith('/auth/') ||
+                                pathname.match(/\.(ico|png|jpg|jpeg|gif|svg|webp)$/);
+            
+            // Only redirect if we're on a protected route
+            if (!isPublicRoute) {
+              const redirectUrl = new URL('/auth/login', window.location.href);
+              redirectUrl.searchParams.set('redirectTo', pathname);
+              router.push(redirectUrl.toString());
+            }
+            
+            // Always refresh to update server state
             router.refresh();
-          } else {
-            setUser(null);
-            setSession(null);
-            await supabase.auth.signOut();
-            router.push('/auth/login');
+          } else if (event === 'PASSWORD_RECOVERY') {
+            // Handle password recovery flow
+            router.push('/auth/reset-password');
+          } else if (event === 'USER_UPDATED') {
+            // Refresh the user data
+            const { data: { user: updatedUser } } = await supabase.auth.getUser();
+            if (updatedUser) {
+              setUser(updatedUser);
+              router.refresh();
+            }
           }
         } catch (error) {
-          console.error('Error handling auth change:', error);
+          console.error('Auth state change error:', error);
+          // Clear auth state
           setUser(null);
           setSession(null);
           await supabase.auth.signOut();
-          router.push('/auth/login');
+          
+          // Check if we're on a protected route
+          const pathname = window.location.pathname;
+          const isPublicRoute = ['/', '/about'].includes(pathname) || 
+                              pathname.startsWith('/auth/') ||
+                              pathname.match(/\.(ico|png|jpg|jpeg|gif|svg|webp)$/);
+          
+          // Only redirect if we're on a protected route
+          if (!isPublicRoute) {
+            const redirectUrl = new URL('/auth/login', window.location.href);
+            redirectUrl.searchParams.set('redirectTo', pathname);
+            router.push(redirectUrl.toString());
+          }
+        } finally {
+          setLoading(false);
         }
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-        setSession(null);
-        // Clear any cached data and refresh
-        router.refresh();
-        router.push('/auth/login');
       }
-      
-      setLoading(false);
-    });
+    );
 
     // Cleanup subscription
     return () => {

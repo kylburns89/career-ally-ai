@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { createClient } from "../../lib/supabase/client"
 import { Button } from "../ui/button"
 import {
   Dialog,
@@ -114,7 +114,7 @@ export function ApplicationTracker() {
     skills_assessed: null,
   })
 
-  const supabase = createClientComponentClient<Database>()
+  const supabase = createClient()
   const { resumes, isLoading: resumesLoading } = useResumes()
   const { coverLetters, isLoading: coverLettersLoading } = useCoverLetters()
   const { contacts, isLoading: contactsLoading } = useContacts()

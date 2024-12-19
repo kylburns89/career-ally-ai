@@ -525,13 +525,23 @@ export function ResumeBuilder({
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-foreground">Your Resumes</h2>
-          <button 
-            onClick={handleCreateResume}
-            className="flex items-center gap-2 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-          >
-            <Plus className="h-4 w-4" />
-            Create New Resume
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              type="button" 
+              onClick={handleExport} 
+              disabled={!activeResume?.id}
+              className="flex items-center gap-2 px-4 py-2 text-sm bg-accent text-accent-foreground rounded-md hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Export PDF
+            </button>
+            <button 
+              onClick={handleCreateResume}
+              className="flex items-center gap-2 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+            >
+              <Plus className="h-4 w-4" />
+              Create New Resume
+            </button>
+          </div>
         </div>
         <div className="flex gap-4 overflow-x-auto pb-4">
           {resumes.map((resume: Resume) => (
@@ -638,7 +648,7 @@ export function ResumeBuilder({
                   type="button" 
                   onClick={handleExport} 
                   disabled={!activeResume?.id}
-                  className="flex-1 px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 px-4 py-2 bg-accent text-accent-foreground rounded-md hover:bg-accent/90 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Export PDF
                 </button>

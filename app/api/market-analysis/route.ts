@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { searchMarketData } from '../../../lib/brave';
 import { generateMarketAnalysis } from '../../../lib/together';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { ResponseCookie } from 'next/dist/compiled/@edge-runtime/cookies';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,7 +21,38 @@ export async function GET(request: Request) {
   try {
     // Create a Supabase client for the route handler with cookie support
     const cookieStore = cookies();
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value;
+          },
+          set(name: string, value: string, options: Partial<ResponseCookie>) {
+            cookieStore.set({
+              name,
+              value,
+              ...options,
+              // Ensure secure cookies in production
+              secure: process.env.NODE_ENV === 'production',
+              // Support OAuth flows
+              sameSite: 'lax',
+              // Set path to root
+              path: '/',
+            });
+          },
+          remove(name: string, options: Partial<ResponseCookie>) {
+            cookieStore.set({
+              name,
+              value: '',
+              ...options,
+              maxAge: 0,
+            });
+          },
+        },
+      }
+    );
 
     // Get user session
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
