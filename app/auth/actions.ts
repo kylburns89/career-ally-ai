@@ -74,13 +74,22 @@ export async function signIn(formData: FormData) {
 }
 
 export async function signOut() {
+  const cookieStore = cookies()
   const supabase = await createClient()
 
   try {
     const { error } = await supabase.auth.signOut()
     if (error) throw error
     
-    clearAuthCookies()
+    // Clear all auth-related cookies
+    cookieStore.getAll().forEach(cookie => {
+      if (cookie.name.startsWith('sb-') || 
+          cookie.name.includes('supabase') || 
+          cookie.name === 'redirectTo') {
+        cookieStore.delete(cookie.name)
+      }
+    })
+
     return { success: true as const, redirectTo: '/auth/login' }
   } catch (error) {
     return handleAuthError(error as Error)

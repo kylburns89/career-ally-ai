@@ -11,6 +11,8 @@ import { LoadingPage } from '../../../components/loading'
 // Client components
 import ProfileForm from './profile-form'
 
+export const dynamic = 'force-dynamic'
+
 export default async function ProfileSettings() {
   const cookieStore = cookies()
   const supabase = await createClient()

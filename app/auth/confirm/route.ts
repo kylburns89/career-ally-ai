@@ -11,7 +11,7 @@ function createErrorUrl(request: NextRequest, message: string): URL {
 }
 
 // Helper to verify user session
-async function verifySession(supabase: ReturnType<typeof createClient>) {
+async function verifySession(supabase: Awaited<ReturnType<typeof createClient>>) {
   const { data: { session }, error: sessionError } = await supabase.auth.getSession()
   if (sessionError) throw sessionError
   if (!session) throw new Error('No session established')
@@ -44,7 +44,7 @@ async function ensureUserProfile(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { searchParams } = new URL(request.url)
   const token_hash = searchParams.get('token_hash')
   const type = searchParams.get('type') as EmailOtpType | null

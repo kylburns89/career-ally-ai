@@ -4,6 +4,8 @@ import { redirect } from 'next/navigation'
 import { PageContainer } from '../../components/page-container'
 import { ApplicationTracker } from '../../components/applications/application-tracker'
 
+export const dynamic = 'force-dynamic'
+
 export default async function TrackerPage() {
   const cookieStore = cookies()
   const supabase = await createClient()

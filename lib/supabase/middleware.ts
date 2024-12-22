@@ -2,7 +2,8 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function updateSession(request: NextRequest) {
-  let response = NextResponse.next({
+  // Create a response early so we can modify cookies
+  const response = NextResponse.next({
     request: {
       headers: request.headers,
     },
@@ -17,16 +18,13 @@ export async function updateSession(request: NextRequest) {
           return request.cookies.get(name)?.value
         },
         set(name: string, value: string, options: CookieOptions) {
+          // Set cookie on the request so it's available for supabase-js
           request.cookies.set({
             name,
             value,
             ...options,
           })
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          })
+          // Set cookie on the response so it's persisted for future requests
           response.cookies.set({
             name,
             value,
@@ -34,28 +32,41 @@ export async function updateSession(request: NextRequest) {
           })
         },
         remove(name: string, options: CookieOptions) {
-          request.cookies.set({
-            name,
-            value: '',
-            ...options,
-          })
-          response = NextResponse.next({
-            request: {
-              headers: request.headers,
-            },
-          })
-          response.cookies.set({
-            name,
-            value: '',
-            ...options,
-          })
+          // Remove cookie from the request
+          request.cookies.delete(name)
+          // Remove cookie from the response
+          response.cookies.delete(name)
         },
       },
     }
   )
 
-  // Refresh session if expired - required for Server Components
-  await supabase.auth.getUser()
+  try {
+    // Refresh session if expired
+    const {
+      data: { user },
+      error,
+    } = await supabase.auth.getUser()
 
-  return response
+    // If there's an error but we're on a public route, don't throw
+    if (error) {
+      const isPublicRoute = request.nextUrl.pathname.startsWith('/auth/') ||
+                           ['/', '/about'].includes(request.nextUrl.pathname)
+      
+      if (!isPublicRoute) {
+        // Store the original URL to redirect back after login
+        const redirectUrl = new URL('/auth/login', request.url)
+        redirectUrl.searchParams.set('redirectTo', request.nextUrl.pathname)
+        return NextResponse.redirect(redirectUrl)
+      }
+    }
+
+    // If session was refreshed, the response will have new cookie values to persist
+    return response
+  } catch (error) {
+    console.error('Middleware error:', error)
+    // On critical errors, redirect to login
+    const redirectUrl = new URL('/auth/login', request.url)
+    return NextResponse.redirect(redirectUrl)
+  }
 }

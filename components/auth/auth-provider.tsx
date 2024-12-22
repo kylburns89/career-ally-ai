@@ -17,10 +17,8 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
 });
 
-// Create supabase client outside component to prevent unnecessary re-creation
-const supabase = createClient();
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const supabase = createClient();
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
@@ -54,6 +52,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refreshSession]);
 
   useEffect(() => {
+    // Check for initial session immediately
+    refreshSession();
+
     // Initialize auth state and set up listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event: AuthChangeEvent, currentSession: Session | null) => {
@@ -68,12 +69,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
             await refreshSession();
             router.refresh();
+            window.location.reload(); // Force full page reload
           } else if (event === 'SIGNED_OUT') {
             setUser(null);
             setSession(null);
             
-            // Let middleware handle redirects for protected routes
-            router.refresh();
+            // Force reload to ensure all server components re-render
+            window.location.reload();
           } else if (event === 'PASSWORD_RECOVERY') {
             router.push('/auth/reset-password');
           } else if (event === 'USER_UPDATED') {

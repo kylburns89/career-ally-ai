@@ -11,7 +11,7 @@ function createErrorUrl(request: NextRequest, message: string): URL {
 }
 
 // Helper to verify user session with retries
-async function verifySession(supabase: ReturnType<typeof createClient>) {
+async function verifySession(supabase: Awaited<ReturnType<typeof createClient>>) {
   const maxRetries = 3;
   const retryDelay = 1000; // 1 second
   const timeout = 10000; // 10 second timeout
@@ -76,7 +76,7 @@ async function ensureUserProfile(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { searchParams } = new URL(request.url)
   const code = searchParams.get('code')
   const token_hash = searchParams.get('token_hash')
