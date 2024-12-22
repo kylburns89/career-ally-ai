@@ -33,33 +33,71 @@ export function ApplicationAnalyticsDashboard() {
   const supabase = createClientComponentClient<Database>()
 
   useEffect(() => {
-    const fetchAnalytics = async () => {
-      const { data, error } = await supabase
-        .from("application_analytics")
-        .select("*")
-        .single()
-
-      if (error) {
-        console.error("Error fetching analytics:", error)
-        return
-      }
-
-      setAnalytics(data)
-    }
-
-    const fetchApplicationTrends = async () => {
-      const { data, error } = await supabase
+    const fetchApplicationsAndCalculateAnalytics = async () => {
+      // Fetch all applications
+      const { data: applications, error } = await supabase
         .from("applications")
-        .select("status, applied_date")
+        .select("*")
         .order("applied_date", { ascending: true })
 
       if (error) {
-        console.error("Error fetching application trends:", error)
+        console.error("Error fetching applications:", error)
         return
       }
 
-      // Group applications by month
-      const trends = data.reduce((acc: ApplicationTrend[], curr) => {
+      // Calculate analytics
+      const total = applications.length
+      const offers = applications.filter(app => app.status === "offer").length
+      const rejections = applications.filter(app => app.status === "rejected").length
+      const interviewing = applications.filter(app => app.status === "interviewing").length
+      
+      // Calculate average response time
+      const responseTimes = applications
+        .filter(app => app.response_date)
+        .map(app => {
+          const appliedDate = new Date(app.applied_date)
+          const responseDate = new Date(app.response_date!)
+          return (responseDate.getTime() - appliedDate.getTime()) / (1000 * 60 * 60 * 24) // Convert to days
+        })
+      const avgResponseTime = responseTimes.length > 0
+        ? responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length
+        : null
+
+      // Calculate average salary offered
+      const salaries = applications
+        .filter(app => app.salary_offered)
+        .map(app => app.salary_offered!)
+      const avgSalary = salaries.length > 0
+        ? salaries.reduce((a, b) => a + b, 0) / salaries.length
+        : null
+
+      // Calculate average interview rounds
+      const interviewRounds = applications
+        .filter(app => app.interview_rounds > 0)
+        .map(app => app.interview_rounds)
+      const avgInterviewRounds = interviewRounds.length > 0
+        ? interviewRounds.reduce((a, b) => a + b, 0) / interviewRounds.length
+        : null
+
+      // Calculate rates
+      const interviewRate = total > 0 ? (interviewing + offers + rejections) / total * 100 : 0
+      const offerRate = total > 0 ? (offers / total) * 100 : 0
+
+      setAnalytics({
+        user_id: "", // Not needed for display
+        total_applications: total,
+        offers_received: offers,
+        rejections: rejections,
+        in_interview_process: interviewing,
+        avg_response_time_days: avgResponseTime,
+        avg_salary_offered: avgSalary,
+        avg_interview_rounds: avgInterviewRounds,
+        interview_rate: interviewRate,
+        offer_conversion_rate: offerRate
+      })
+
+      // Calculate trends
+      const trends = applications.reduce((acc: ApplicationTrend[], curr) => {
         const month = new Date(curr.applied_date).toLocaleString("default", {
           month: "short",
           year: "numeric",
@@ -83,8 +121,7 @@ export function ApplicationAnalyticsDashboard() {
       setApplicationTrends(trends)
     }
 
-    fetchAnalytics()
-    fetchApplicationTrends()
+    fetchApplicationsAndCalculateAnalytics()
   }, [supabase])
 
   if (!analytics) {
