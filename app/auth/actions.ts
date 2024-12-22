@@ -57,28 +57,16 @@ export async function signIn(formData: FormData) {
   const cookieStore = cookies()
   const redirectTo = cookieStore.get('redirectTo')?.value || '/'
   
-  const supabase = createClient()
+  const supabase = await createClient()
   
   try {
-    // Attempt sign in
-    const { error: signInError } = await supabase.auth.signInWithPassword({
+    const { error } = await supabase.auth.signInWithPassword({
       email: formData.get('email') as string,
       password: formData.get('password') as string,
     })
-    if (signInError) throw signInError
+    if (error) throw error
 
-    // Verify authentication
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    if (userError || !user) throw userError || new Error('Authentication failed')
-
-    // Verify session
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-    if (sessionError || !session) throw sessionError || new Error('Failed to establish session')
-
-    // Clear redirect cookie
     cookieStore.delete('redirectTo')
-    
-    // Return success with redirect URL
     return { success: true as const, redirectTo }
   } catch (error) {
     return handleAuthError(error as Error)
@@ -86,7 +74,7 @@ export async function signIn(formData: FormData) {
 }
 
 export async function signOut() {
-  const supabase = createClient()
+  const supabase = await createClient()
 
   try {
     const { error } = await supabase.auth.signOut()
@@ -100,7 +88,7 @@ export async function signOut() {
 }
 
 export async function signUp(formData: FormData) {
-  const supabase = createClient()
+  const supabase = await createClient()
 
   try {
     const { error } = await supabase.auth.signUp({
@@ -119,7 +107,7 @@ export async function signUp(formData: FormData) {
 }
 
 export async function signInWithOAuth(provider: 'github' | 'google') {
-  const supabase = createClient()
+  const supabase = await createClient()
   
   try {
     const { data, error } = await supabase.auth.signInWithOAuth({
@@ -145,7 +133,7 @@ export async function signInWithOAuth(provider: 'github' | 'google') {
 
 // MFA-related server actions
 export async function enrollMFA() {
-  const supabase = createClient()
+  const supabase = await createClient()
   
   try {
     const { data, error } = await supabase.auth.mfa.enroll({
@@ -159,7 +147,7 @@ export async function enrollMFA() {
 }
 
 export async function verifyMFA(factorId: string, code: string) {
-  const supabase = createClient()
+  const supabase = await createClient()
   
   try {
     const { data, error } = await supabase.auth.mfa.challengeAndVerify({
@@ -174,12 +162,38 @@ export async function verifyMFA(factorId: string, code: string) {
 }
 
 export async function unenrollMFA(factorId: string) {
-  const supabase = createClient()
+  const supabase = await createClient()
   
   try {
     const { data, error } = await supabase.auth.mfa.unenroll({ factorId })
     if (error) throw error
     return { data }
+  } catch (error) {
+    return handleAuthError(error as Error)
+  }
+}
+
+export async function resetPassword(email: string) {
+  const supabase = await createClient()
+  
+  try {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${getURL()}auth/update-password`,
+    })
+    if (error) throw error
+    return { success: true as const }
+  } catch (error) {
+    return handleAuthError(error as Error)
+  }
+}
+
+export async function updatePassword(password: string) {
+  const supabase = await createClient()
+  
+  try {
+    const { error } = await supabase.auth.updateUser({ password })
+    if (error) throw error
+    return { success: true as const, redirectTo: '/auth/login' }
   } catch (error) {
     return handleAuthError(error as Error)
   }

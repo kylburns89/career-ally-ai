@@ -6,11 +6,11 @@ import { ApplicationTracker } from '../../components/applications/application-tr
 
 export default async function TrackerPage() {
   const cookieStore = cookies()
-  const supabase = createClient()
+  const supabase = await createClient()
 
-  const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-  if (sessionError || !session) {
-    console.error('Session error:', sessionError)
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) {
+    console.error('Auth error:', authError)
     redirect('/auth/login')
   }
 

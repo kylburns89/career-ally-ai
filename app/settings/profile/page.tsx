@@ -13,11 +13,11 @@ import ProfileForm from './profile-form'
 
 export default async function ProfileSettings() {
   const cookieStore = cookies()
-  const supabase = createClient()
+  const supabase = await createClient()
 
-  const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-  if (sessionError || !session) {
-    console.error('Session error:', sessionError)
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  if (authError || !user) {
+    console.error('Auth error:', authError)
     redirect('/auth/login')
   }
 
@@ -25,7 +25,7 @@ export default async function ProfileSettings() {
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select()
-    .eq('id', session.user.id)
+    .eq('id', user.id)
     .single()
 
   if (profileError && profileError.code !== 'PGRST116') {
@@ -38,7 +38,7 @@ export default async function ProfileSettings() {
     const { data: newProfile, error: createError } = await supabase
       .from('profiles')
       .insert({
-        id: session.user.id,
+        id: user.id,
         title: null,
         bio: null,
         location: null,
