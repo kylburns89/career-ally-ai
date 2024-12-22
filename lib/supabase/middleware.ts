@@ -42,11 +42,24 @@ export async function updateSession(request: NextRequest) {
   )
 
   try {
-    // Refresh session if expired
-    const {
-      data: { user },
-      error,
-    } = await supabase.auth.getUser()
+    // Get both session and user to ensure proper auth state
+    const [
+      { data: { session }, error: sessionError },
+      { data: { user }, error: userError }
+    ] = await Promise.all([
+      supabase.auth.getSession(),
+      supabase.auth.getUser()
+    ])
+
+    const error = sessionError || userError;
+
+    // Log auth state for debugging
+    console.log('Middleware auth state:', {
+      path: request.nextUrl.pathname,
+      hasSession: !!session,
+      hasUser: !!user,
+      error: error?.message
+    });
 
     // If there's an error but we're on a public route, don't throw
     if (error) {
@@ -59,6 +72,18 @@ export async function updateSession(request: NextRequest) {
         redirectUrl.searchParams.set('redirectTo', request.nextUrl.pathname)
         return NextResponse.redirect(redirectUrl)
       }
+    }
+
+    // Set auth state in cookies for client-side access
+    if (session) {
+      response.cookies.set('auth-state', 'authenticated', {
+        path: '/',
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 60 * 10 // 10 minutes
+      });
+    } else {
+      response.cookies.delete('auth-state');
     }
 
     // If session was refreshed, the response will have new cookie values to persist

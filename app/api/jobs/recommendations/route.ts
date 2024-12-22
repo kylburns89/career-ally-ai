@@ -1,23 +1,50 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { createClient } from "../../../../lib/supabase/server";
 import { NextResponse } from "next/server";
-import { createChatCompletion } from "@/lib/openai";
+import { createChatCompletion } from "../../../../lib/openai";
 
 export async function GET() {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
-    
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user?.id) {
-      return new NextResponse("Unauthorized", { status: 401 });
+    if (!process.env.TOGETHER_API_KEY) {
+      console.error("[JOBS_RECOMMENDATIONS] Missing TOGETHER_API_KEY");
+      return new NextResponse("Server configuration error", { status: 500 });
     }
 
+    // Create a new supabase client
+    const supabase = await createClient();
+
+    // Get the session
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+    // Log auth state for debugging
+    console.log("[JOBS_RECOMMENDATIONS] Auth state:", {
+      hasSession: !!session,
+      userId: session?.user?.id,
+      error: sessionError?.message
+    });
+
+    if (sessionError) {
+      console.error("[JOBS_RECOMMENDATIONS] Auth Error:", sessionError);
+      return new NextResponse("Authentication error", { status: 401 });
+    }
+    
+    if (!session?.user?.id) {
+      console.error("[JOBS_RECOMMENDATIONS] No valid session");
+      return new NextResponse("Unauthorized - No valid session", { status: 401 });
+    }
+
+    console.log("[JOBS_RECOMMENDATIONS] Authenticated user:", session.user.id);
+
     // Get user's profile
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select()
       .eq("id", session.user.id)
       .single();
+
+    if (profileError) {
+      console.error("[JOBS_RECOMMENDATIONS] Profile Error:", profileError);
+      return new NextResponse("Error fetching profile", { status: 500 });
+    }
 
     if (!profile) {
       return NextResponse.json({ 
@@ -59,12 +86,13 @@ export async function GET() {
         { role: "user", content: prompt }
       ],
       {
-        model: "gpt-4o-mini",
+        model: "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
         temperature: 0.7
       }
     );
 
     if (!content) {
+      console.error("[JOBS_RECOMMENDATIONS] No content generated");
       throw new Error("Failed to generate recommendations");
     }
 
@@ -78,9 +106,9 @@ export async function GET() {
       const recommendations = JSON.parse(cleanedContent);
       return NextResponse.json(recommendations);
     } catch (parseError) {
-      console.error("JSON Parse Error:", parseError);
-      console.error("Raw Content:", content);
-      console.error("Cleaned Content:", cleanedContent);
+      console.error("[JOBS_RECOMMENDATIONS] JSON Parse Error:", parseError);
+      console.error("[JOBS_RECOMMENDATIONS] Raw Content:", content);
+      console.error("[JOBS_RECOMMENDATIONS] Cleaned Content:", cleanedContent);
       throw new Error("Failed to parse recommendations");
     }
   } catch (error: any) {

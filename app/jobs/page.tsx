@@ -44,18 +44,40 @@ export default function JobsPage() {
   const fetchRecommendations = async () => {
     setLoadingRecommendations(true);
     try {
-      const response = await fetch('/api/jobs/recommendations');
+      const response = await fetch('/api/jobs/recommendations', {
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        cache: 'no-store'
+      });
+
       if (!response.ok) {
-        throw new Error('Failed to fetch recommendations');
+        const errorData = await response.json().catch(() => null);
+        console.error("[JOBS_PAGE] Recommendations error:", {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData?.error
+        });
+        throw new Error(
+          errorData?.error || 
+          `Failed to fetch recommendations: ${response.status} ${response.statusText}`
+        );
       }
+
       const data = await response.json();
-      setRecommendations(data.recommendations || []);
+      if (!data.recommendations) {
+        throw new Error('Invalid response format');
+      }
+
+      setRecommendations(data.recommendations);
       setShowRecommendations(true);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching recommendations:", error);
       toast({
         title: "Error",
-        description: "Failed to fetch job recommendations. Please try again later.",
+        description: error.message || "Failed to fetch job recommendations. Please try again later.",
         variant: "destructive",
       });
     } finally {
@@ -81,9 +103,25 @@ export default function JobsPage() {
         ...(experienceLevel && { experienceLevel }),
       });
 
-      const response = await fetch(`/api/jobs?${params}`);
+      const response = await fetch(`/api/jobs?${params}`, {
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        cache: 'no-store'
+      });
       if (!response.ok) {
-        throw new Error('Failed to fetch jobs');
+        const errorData = await response.json().catch(() => null);
+        console.error("[JOBS_PAGE] Search error:", {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorData?.error
+        });
+        throw new Error(
+          errorData?.error || 
+          `Failed to fetch jobs: ${response.status} ${response.statusText}`
+        );
       }
 
       const data = await response.json();

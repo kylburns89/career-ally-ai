@@ -13,6 +13,7 @@ interface Job {
 }
 
 export async function GET(request: Request) {
+  try {
   const { searchParams } = new URL(request.url);
   const query = searchParams.get('query') || '';
   const location = searchParams.get('location') || '';
@@ -84,8 +85,15 @@ export async function GET(request: Request) {
     }
   ];
 
-  return NextResponse.json({ 
-    data: [...jobs, ...exampleJobs],
-    message: 'Showing job board links and example positions'
-  });
+    return NextResponse.json({ 
+      data: [...jobs, ...exampleJobs],
+      message: 'Showing job board links and example positions'
+    });
+  } catch (error: any) {
+    console.error("[JOBS_SEARCH]", error);
+    return NextResponse.json(
+      { error: error.message || "Failed to fetch jobs" },
+      { status: error.status || 500 }
+    );
+  }
 }

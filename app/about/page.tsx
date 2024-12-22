@@ -1,12 +1,10 @@
-"use client"
+"use client";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { RocketIcon, SparklesIcon, BrainIcon, ShieldCheckIcon, HeartIcon } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { useEffect, useState } from "react";
+import { useAuthContext } from "@/components/auth/auth-provider";
 
 const benefits = [
   {
@@ -38,15 +36,27 @@ const benefits = [
 
 export default function About() {
   const router = useRouter();
-  const supabase = createClientComponentClient();
-  const [isLoading, setIsLoading] = useState(true);
+  const { session, loading } = useAuthContext();
 
-  const handleStartJourney = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
+  const handleStartJourney = () => {
+    // If still loading, show loading state in button
+    if (loading) {
+      console.log('Auth state is loading...');
+      return;
+    }
+
+    console.log('Auth state:', { session: !!session, loading });
+    
     if (session) {
-      router.push("/"); // Redirect to home if logged in
+      console.log('User is authenticated, redirecting to landing page...');
+      router.push("/");
     } else {
-      router.push("/auth/login"); // Redirect to login if not logged in
+      console.log('User is not authenticated, redirecting to login...');
+      // Ensure we're using the full URL for the redirect
+      const currentUrl = window.location.origin;
+      const redirectUrl = new URL('/auth/login', currentUrl);
+      redirectUrl.searchParams.set('redirectTo', '/tracker');
+      router.push(redirectUrl.toString());
     }
   };
 
@@ -61,8 +71,12 @@ export default function About() {
               Kareerly is your intelligent career companion, combining advanced artificial intelligence with comprehensive career development tools to help you achieve your professional goals.
             </p>
             <div className="flex justify-center gap-4 pt-4">
-              <Button size="lg" onClick={handleStartJourney}>
-                Start Your Journey
+              <Button 
+                size="lg" 
+                onClick={handleStartJourney}
+                disabled={loading}
+              >
+                {loading ? 'Loading...' : 'Start Your Journey'}
               </Button>
             </div>
           </div>
@@ -97,8 +111,12 @@ export default function About() {
               We believe everyone deserves access to powerful career development tools. Our mission is to democratize career advancement by providing AI-powered tools that were once only available through expensive career coaching services.
             </p>
             <div className="flex justify-center gap-4 pt-4">
-              <Button variant="outline" onClick={handleStartJourney}>
-                Explore Features
+              <Button 
+                variant="outline" 
+                onClick={handleStartJourney}
+                disabled={loading}
+              >
+                {loading ? 'Loading...' : 'Explore Features'}
               </Button>
             </div>
           </div>
@@ -111,8 +129,12 @@ export default function About() {
             Join thousands of professionals who are already using Kareerly to advance their careers.
           </p>
           <div className="flex justify-center gap-4 pt-4">
-            <Button size="lg" onClick={handleStartJourney}>
-              Get Started Now
+            <Button 
+              size="lg" 
+              onClick={handleStartJourney}
+              disabled={loading}
+            >
+              {loading ? 'Loading...' : 'Get Started Now'}
             </Button>
           </div>
         </section>
