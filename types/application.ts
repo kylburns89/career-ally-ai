@@ -55,17 +55,3 @@ export interface ApplicationFormState {
   interview_types?: string[] | null
   skills_assessed?: string[] | null
 }
-
-// Type for analytics data
-export interface ApplicationAnalytics {
-  user_id: string
-  total_applications: number
-  offers_received: number
-  rejections: number
-  in_interview_process: number
-  avg_response_time_days: number | null
-  avg_salary_offered: number | null
-  avg_interview_rounds: number | null
-  interview_rate: number
-  offer_conversion_rate: number
-}

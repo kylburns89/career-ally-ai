@@ -38,12 +38,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "../ui/alert-dialog"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs"
 import { Database } from "../../types/database"
 import { ApplicationFormState, ApplicationResponse } from "../../types/application"
 import ResumePreview from "../resume/resume-preview"
 import { CoverLetterPreview } from "../cover-letter/cover-letter-preview"
-import { ApplicationAnalyticsDashboard } from "./application-analytics"
 import Link from "next/link"
 import { toast } from "sonner"
 
@@ -280,14 +278,7 @@ export function ApplicationTracker({
 
   return (
     <div className="space-y-4">
-      <Tabs defaultValue="tracker" className="w-full">
-        <TabsList>
-          <TabsTrigger value="tracker">Application Tracker</TabsTrigger>
-          <TabsTrigger value="analytics">Analytics Dashboard</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="tracker">
-          <div className="space-y-4">
+      <div className="space-y-4">
             <div className="flex justify-between items-center">
               <Dialog open={isOpen} onOpenChange={(open) => {
                 setIsOpen(open)
@@ -702,13 +693,7 @@ export function ApplicationTracker({
                 </TableBody>
               </Table>
             </div>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="analytics">
-          <ApplicationAnalyticsDashboard />
-        </TabsContent>
-      </Tabs>
+      </div>
 
       <Dialog open={showResumePreview} onOpenChange={setShowResumePreview}>
         <DialogContent className="max-w-4xl">
