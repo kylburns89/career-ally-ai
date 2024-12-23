@@ -546,9 +546,9 @@ export function ResumeBuilder({
         <div className="flex gap-4 overflow-x-auto pb-4">
           {resumes.map((resume: Resume) => (
             <div key={resume.id} className="relative flex-shrink-0 pt-3 pr-3">
-              <button
+              <div
                 onClick={() => setActiveResume?.(resume)}
-                className={"w-[200px] p-4 rounded-lg border-2 transition-all hover:border-primary " + 
+                className={"w-[200px] p-4 rounded-lg border-2 transition-all hover:border-primary cursor-pointer " + 
                   (activeResume?.id === resume.id ? 'border-primary ring-2 ring-primary ring-offset-2' : 'border-border')}
               >
                 {editingName === resume.id ? (
@@ -579,28 +579,26 @@ export function ResumeBuilder({
                   <>
                     <div className="flex items-center justify-between group">
                       <h3 className="font-medium truncate flex-1 text-foreground">{resume.name || 'Untitled Resume'}</h3>
-                      <div className="relative flex items-center">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleStartEditName(resume.id, resume.name);
-                          }}
-                          className="p-1.5 text-primary hover:bg-primary/10 rounded-full transition-colors relative group-hover:opacity-100 opacity-70"
-                          title="Edit Resume Name"
-                        >
-                          <Edit2 className="h-4 w-4" />
-                          <span className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-popover text-popover-foreground text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                            Edit Name
-                          </span>
-                        </button>
-                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleStartEditName(resume.id, resume.name);
+                        }}
+                        className="p-1.5 text-primary hover:bg-primary/10 rounded-full transition-colors relative group-hover:opacity-100 opacity-70"
+                        title="Edit Resume Name"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                        <span className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-popover text-popover-foreground text-xs py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                          Edit Name
+                        </span>
+                      </button>
                     </div>
                     <p className="text-sm text-muted-foreground mt-1">
                       {format(new Date(resume.updatedAt), 'MM/dd/yyyy')}
                     </p>
                   </>
                 )}
-              </button>
+              </div>
               <button
                 onClick={() => handleDeleteResume(resume.id)}
                 className="absolute top-0 right-0 p-1.5 bg-destructive text-destructive-foreground rounded-full hover:bg-destructive/90 shadow-sm"

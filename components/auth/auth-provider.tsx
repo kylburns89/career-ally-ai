@@ -69,13 +69,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
             await refreshSession();
             router.refresh();
-            window.location.reload(); // Force full page reload
           } else if (event === 'SIGNED_OUT') {
             setUser(null);
             setSession(null);
-            
-            // Force reload to ensure all server components re-render
-            window.location.reload();
+            router.refresh();
           } else if (event === 'PASSWORD_RECOVERY') {
             router.push('/auth/reset-password');
           } else if (event === 'USER_UPDATED') {
