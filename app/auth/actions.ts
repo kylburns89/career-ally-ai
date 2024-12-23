@@ -37,7 +37,8 @@ function clearAuthCookies() {
   const authCookies = [
     'sb-access-token',
     'sb-refresh-token',
-    'redirectTo'
+    'redirectTo',
+    'auth-state'
   ]
   
   // Clear specific auth cookies
@@ -85,7 +86,8 @@ export async function signOut() {
     cookieStore.getAll().forEach(cookie => {
       if (cookie.name.startsWith('sb-') || 
           cookie.name.includes('supabase') || 
-          cookie.name === 'redirectTo') {
+          cookie.name === 'redirectTo' ||
+          cookie.name === 'auth-state') {
         cookieStore.delete(cookie.name)
       }
     })

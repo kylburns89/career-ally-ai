@@ -80,7 +80,7 @@ export async function updateSession(request: NextRequest) {
         path: '/',
         sameSite: 'lax',
         secure: process.env.NODE_ENV === 'production',
-        maxAge: 60 * 10 // 10 minutes
+        maxAge: 60 * 60 * 24 // 24 hours - longer duration to prevent premature expiration
       });
     } else {
       response.cookies.delete('auth-state');

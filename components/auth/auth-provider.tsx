@@ -27,23 +27,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Function to refresh session
   const refreshSession = useCallback(async () => {
     try {
-      const { data: { session: currentSession }, error } = await supabase.auth.getSession();
-      if (error) throw error;
+      const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) {
+        console.error('Session refresh error:', sessionError);
+        return;
+      }
       
       if (currentSession) {
-        const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
-        if (userError) throw userError;
-        
+        // Update session even if user fetch fails
         setSession(currentSession);
+        
+        const { data: { user: currentUser }, error: userError } = await supabase.auth.getUser();
+        if (userError) {
+          console.error('User fetch error:', userError);
+          // Keep existing user data if fetch fails
+          return;
+        }
+        
         setUser(currentUser);
+      } else {
+        // No session - clear both
+        setSession(null);
+        setUser(null);
       }
     } catch (error) {
       console.error('Error refreshing session:', error);
-      // On refresh error, clear state but don't sign out
-      setSession(null);
-      setUser(null);
+      // Only clear on critical errors
+      if (error instanceof Error && error.message.includes('fatal')) {
+        setSession(null);
+        setUser(null);
+      }
     }
-  }, []);
+  }, [supabase.auth]);
 
   // Set up periodic session refresh
   useEffect(() => {
@@ -52,60 +68,92 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refreshSession]);
 
   useEffect(() => {
+    let mounted = true;
+
     // Check for initial session immediately
-    refreshSession();
+    const initializeAuth = async () => {
+      try {
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (mounted) {
+          if (session) {
+            setSession(session);
+            const { data: { user }, error: userError } = await supabase.auth.getUser();
+            if (!userError && user) {
+              setUser(user);
+            }
+          } else {
+            setSession(null);
+            setUser(null);
+          }
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    initializeAuth();
 
     // Initialize auth state and set up listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event: AuthChangeEvent, currentSession: Session | null) => {
         try {
-          if (event === 'INITIAL_SESSION') {
-            // Initial load - refresh session state
-            await refreshSession();
-            setLoading(false);
-            return;
-          }
+          if (!mounted) return;
 
-          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-            await refreshSession();
-            router.refresh();
-          } else if (event === 'SIGNED_OUT') {
-            setUser(null);
-            setSession(null);
-            router.refresh();
-          } else if (event === 'PASSWORD_RECOVERY') {
-            router.push('/auth/reset-password');
-          } else if (event === 'USER_UPDATED') {
-            await refreshSession();
-            router.refresh();
+          switch (event) {
+            case 'INITIAL_SESSION':
+              // Initial session is handled by initializeAuth
+              break;
+              
+            case 'SIGNED_IN':
+            case 'TOKEN_REFRESHED':
+            case 'USER_UPDATED':
+              await refreshSession();
+              router.refresh();
+              break;
+              
+            case 'SIGNED_OUT':
+              setUser(null);
+              setSession(null);
+              router.refresh();
+              break;
+              
+            case 'PASSWORD_RECOVERY':
+              router.push('/auth/reset-password');
+              break;
           }
         } catch (error) {
           console.error('Auth state change error:', error);
-          // Clear auth state
-          setUser(null);
-          setSession(null);
-          await supabase.auth.signOut();
           
-          // Check if we're on a protected route
-          const pathname = window.location.pathname;
-          const isPublicRoute = ['/', '/about'].includes(pathname) || 
-                              pathname.startsWith('/auth/') ||
-                              pathname.match(/\.(ico|png|jpg|jpeg|gif|svg|webp)$/);
-          
-          // Only redirect if we're on a protected route
-          if (!isPublicRoute) {
-            const redirectUrl = new URL('/auth/login', window.location.href);
-            redirectUrl.searchParams.set('redirectTo', pathname);
-            router.push(redirectUrl.toString());
+          if (mounted) {
+            // Only clear state and redirect on critical errors
+            if (error instanceof Error && error.message.includes('fatal')) {
+              setUser(null);
+              setSession(null);
+              
+              const pathname = window.location.pathname;
+              const isPublicRoute = ['/', '/about'].includes(pathname) || 
+                                  pathname.startsWith('/auth/') ||
+                                  pathname.match(/\.(ico|png|jpg|jpeg|gif|svg|webp)$/);
+              
+              if (!isPublicRoute) {
+                const redirectUrl = new URL('/auth/login', window.location.href);
+                redirectUrl.searchParams.set('redirectTo', pathname);
+                router.push(redirectUrl.toString());
+              }
+            }
           }
-        } finally {
-          setLoading(false);
         }
       }
     );
 
-    // Cleanup subscription
+    // Cleanup
     return () => {
+      mounted = false;
       subscription.unsubscribe();
     };
   }, [router]);
