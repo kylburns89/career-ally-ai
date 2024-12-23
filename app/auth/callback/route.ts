@@ -1,5 +1,5 @@
 import { createClient } from '../../../lib/supabase/server'
-import { type EmailOtpType } from '@supabase/supabase-js'
+import { type EmailOtpType, type User, type Session } from '@supabase/supabase-js'
 import { type NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 
@@ -11,12 +11,12 @@ function createErrorUrl(request: NextRequest, message: string): URL {
 }
 
 // Helper to verify user session with retries
-async function verifySession(supabase: Awaited<ReturnType<typeof createClient>>) {
+async function verifySession(supabase: Awaited<ReturnType<typeof createClient>>): Promise<{ user: User; session: Session }> {
   const maxRetries = 3;
   const retryDelay = 1000; // 1 second
   const timeout = 10000; // 10 second timeout
 
-  const timeoutPromise = new Promise((_, reject) => 
+  const timeoutPromise = new Promise<never>((_, reject) => 
     setTimeout(() => reject(new Error('Session verification timed out')), timeout)
   );
 
@@ -84,40 +84,58 @@ export async function GET(request: NextRequest) {
   const next = searchParams.get('next') ?? '/'
 
   try {
+    console.log('Auth callback received:', { code, token_hash, type, next })
+
     if (code) {
       // Handle OAuth or magic link flow
+      console.log('Processing OAuth/magic link flow')
       const { error } = await supabase.auth.exchangeCodeForSession(code)
-      if (error) throw error
+      if (error) {
+        console.error('Exchange code error:', error)
+        throw error
+      }
+
+      // Add delay before session verification
+      await new Promise(resolve => setTimeout(resolve, 1000))
 
       try {
-        await verifySession(supabase)
+        const { user, session } = await verifySession(supabase)
+        console.log('Session verified for user:', user.id, 'with session:', session.user.id)
       } catch (error) {
-        console.error('Session verification failed:', error);
-        throw new Error('Failed to verify authentication. Please try logging in again.');
-      }
-      
-      // Check if user needs to set up profile
-      const profileRedirect = await ensureUserProfile(request)
-      if (profileRedirect) {
-        return NextResponse.redirect(profileRedirect)
+        console.error('Session verification failed:', error)
+        throw new Error('Failed to verify authentication. Please try logging in again.')
       }
 
       return NextResponse.redirect(new URL(next, request.url))
-    } 
-    
+    }
+
     if (token_hash && type) {
       // Handle email confirmation flow
+      console.log('Processing email confirmation flow')
       const { error } = await supabase.auth.verifyOtp({ type, token_hash })
-      if (error) throw error
+      if (error) {
+        console.error('OTP verification error:', error)
+        throw error
+      }
 
-      await verifySession(supabase)
-      
-      // For email confirmations, always redirect to profile setup first
+      // Add delay before session verification
+      await new Promise(resolve => setTimeout(resolve, 1000))
+
+      try {
+        const { user, session } = await verifySession(supabase)
+        console.log('Session verified for user:', user.id, 'with session:', session.user.id)
+      } catch (error) {
+        console.error('Session verification failed:', error)
+        throw new Error('Failed to verify authentication. Please try logging in again.')
+      }
+
+      // For email confirmations, always redirect to profile setup
       const setupUrl = new URL('/settings/profile', request.url)
       setupUrl.searchParams.set('redirectTo', next)
       return NextResponse.redirect(setupUrl)
     }
 
+    console.error('No authentication parameters found')
     throw new Error('No authentication parameters found')
   } catch (error) {
     console.error('Auth callback error:', error)

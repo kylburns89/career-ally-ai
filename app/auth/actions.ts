@@ -100,18 +100,23 @@ export async function signOut() {
 
 export async function signUp(formData: FormData) {
   const supabase = await createClient()
+  const redirectTo = formData.get('redirectTo') as string || `${getURL()}auth/callback?next=/`
 
   try {
+    console.log('Starting signup with redirect to:', redirectTo)
     const { error } = await supabase.auth.signUp({
       email: formData.get('email') as string,
       password: formData.get('password') as string,
       options: {
-        emailRedirectTo: `${getURL()}auth/callback?next=/`,
+        emailRedirectTo: redirectTo,
       },
     })
-    if (error) throw error
+    if (error) {
+      console.error('Supabase signup error:', error)
+      throw error
+    }
 
-    return { success: true as const, redirectTo: '/auth/verify' }
+    return { success: true as const, redirectTo: '/auth/check-email' }
   } catch (error) {
     return handleAuthError(error as Error)
   }

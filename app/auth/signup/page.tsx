@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { signUp, signInWithOAuth } from "../actions"
 import { Button } from "../../../components/ui/button"
 import {
   Card,
@@ -25,50 +25,36 @@ export default function SignUpPage() {
   const [githubLoading, setGithubLoading] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
-  const supabase = createClientComponentClient()
-
   const handleSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setLoading(true)
 
     try {
-      console.log('Starting signup process for email:', email)
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
-        },
-      })
+      // Create form data with current URL origin for redirect
+      const formData = new FormData()
+      formData.append('email', email)
+      formData.append('password', password)
+      formData.append('redirectTo', `${window.location.origin}/auth/callback`)
 
-      if (error) {
-        console.error('Signup error:', {
-          code: error.code,
-          message: error.message,
-          name: error.name,
-          stack: error.stack
-        })
+      const result = await signUp(formData)
+
+      if ('error' in result) {
+        console.error('Signup error:', result.error)
         toast({
           title: "Error",
-          description: error.message,
+          description: result.error,
           variant: "destructive",
         })
         return
       }
-
-      console.log('Signup successful:', {
-        userId: data.user?.id,
-        email: data.user?.email,
-        confirmationSent: data.user?.confirmation_sent_at
-      })
 
       toast({
         title: "Success",
         description: "Check your email to confirm your account",
       })
       
-      // Redirect to login page
-      router.push("/auth/login")
+      // Redirect to check email page
+      router.push("/auth/check-email")
     } catch (error) {
       console.error('Unexpected signup error:', error)
       toast({
@@ -84,29 +70,19 @@ export default function SignUpPage() {
   const handleGithubSignUp = async () => {
     try {
       setGithubLoading(true)
-      console.log('Starting GitHub signup process')
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "github",
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
-        },
-      })
-
-      if (error) {
-        console.error('GitHub signup error:', {
-          code: error.code,
-          message: error.message,
-          name: error.name,
-          stack: error.stack
-        })
+      const result = await signInWithOAuth('github')
+      
+      if ('error' in result) {
+        console.error('GitHub signup error:', result.error)
         toast({
           title: "Error",
-          description: error.message,
+          description: result.error,
           variant: "destructive",
         })
-      } else {
-        console.log('GitHub signup initiated successfully')
+        return
       }
+
+      // OAuth flow will handle the redirect automatically
     } catch (error) {
       console.error('Unexpected GitHub signup error:', error)
       toast({
