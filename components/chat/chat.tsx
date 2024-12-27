@@ -1,12 +1,12 @@
 'use client'
 
-import { useChat } from 'ai/react'
+import { useChat, Message } from 'ai/react'
 import { Card } from '../ui/card'
 import { Input } from '../ui/input'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { KeyboardEvent, ChangeEvent, useState } from 'react'
-import { toast } from 'sonner'
+import { toast } from '../ui/use-toast'
 import { Loader2 } from 'lucide-react'
 
 interface ChatProps {
@@ -14,6 +14,10 @@ interface ChatProps {
   systemPrompt?: string
   initialMessage?: string
   className?: string
+}
+
+interface ChatError extends Error {
+  message: string
 }
 
 export default function Chat({ 
@@ -37,16 +41,19 @@ export default function Chat({
         content: initialMessage
       }
     ],
-    onError: (error) => {
+    onError: (error: ChatError) => {
       console.error('Chat error:', error)
-      toast.error(error.message || 'Failed to send message. Please try again.')
+      toast({ 
+        title: error.message || 'Failed to send message. Please try again.',
+        variant: 'destructive'
+      })
     }
   })
 
   // Set up a timer for long responses
   const handleMessageSend = async (content: string) => {
     if (!content.trim()) {
-      toast.error('Please enter a message')
+      toast({ title: 'Please enter a message', variant: 'destructive' })
       return
     }
 
@@ -54,7 +61,7 @@ export default function Chat({
       // Start a timer to check if the response is taking too long
       const timer = setTimeout(() => {
         setIsWaitingLong(true)
-        toast.info('This is taking longer than usual. Please wait...')
+        toast({ title: 'This is taking longer than usual. Please wait...' })
       }, 10000) // Show message after 10 seconds
 
       await append({ content, role: 'user' })
@@ -66,14 +73,14 @@ export default function Chat({
       setInput('')
     } catch (error) {
       console.error('Error sending message:', error)
-      toast.error('Failed to send message. Please try again.')
+      toast({ title: 'Failed to send message. Please try again.', variant: 'destructive' })
     }
   }
 
   return (
     <Card className={`min-h-[600px] flex flex-col ${className}`}>
       <div className="flex-1 p-4 space-y-4 overflow-y-auto">
-        {messages.map((message, index) => (
+        {messages.map((message: Message, index: number) => (
           message.role !== 'system' && (
             <div key={index} className="flex gap-2">
               <span className="font-medium min-w-[50px] text-foreground">
@@ -124,7 +131,7 @@ export default function Chat({
             if (event.key === 'Enter') {
               event.preventDefault()
               if (isLoading) {
-                toast.error('Please wait for the current response')
+                toast({ title: 'Please wait for the current response', variant: 'destructive' })
                 return
               }
               handleMessageSend(input)

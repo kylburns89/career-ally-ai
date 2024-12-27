@@ -39,7 +39,7 @@ export default function JobsPage() {
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
   const [showRecommendations, setShowRecommendations] = useState(false);
   const { toast } = useToast();
-  const { profile } = useProfile();
+  const { profile, isLoading: profileLoading } = useProfile();
 
   const fetchRecommendations = async () => {
     setLoadingRecommendations(true);
@@ -143,8 +143,35 @@ export default function JobsPage() {
     <div className="container mx-auto py-8 px-4">
       <h1 className="text-4xl font-bold mb-8">Find Your Next Opportunity</h1>
       
-      {/* AI Recommendations Section */}
-      {profile && (
+      {/* Profile Section */}
+      {profileLoading ? (
+        <Card className="mb-12">
+          <CardContent className="text-center py-8">
+            <div className="animate-pulse flex flex-col items-center">
+              <div className="h-6 w-48 bg-muted rounded mb-4"></div>
+              <div className="h-4 w-96 bg-muted rounded mb-2"></div>
+              <div className="h-4 w-80 bg-muted rounded mb-4"></div>
+              <div className="h-9 w-32 bg-muted rounded"></div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : !profile ? (
+        <Card className="mb-12">
+          <CardContent className="text-center py-8">
+            <h2 className="text-2xl font-semibold mb-4">Create Your Professional Profile</h2>
+            <p className="text-muted-foreground mb-6">
+              Complete your professional profile to get personalized job recommendations based on your skills and experience.
+            </p>
+            <Button
+              onClick={() => window.location.href = '/profile'}
+              className="flex items-center gap-2"
+              variant="default"
+            >
+              Create Profile
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
         <div className="mb-12">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">

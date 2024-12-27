@@ -1,15 +1,19 @@
-"use client"
-
 import { PageContainer } from "../../components/page-container";
 import { MarketIntelligenceHub } from "../../components/market-intelligence/market-intelligence-hub";
-import ProtectedRoute from "../../components/auth/protected-route";
+import { getServerSession } from "next-auth";
+import { redirect } from "next/navigation";
+import { authOptions } from "../api/auth/auth-options";
 
-export default function MarketIntelligencePage() {
+export default async function MarketIntelligencePage() {
+  const session = await getServerSession(authOptions);
+  
+  if (!session) {
+    redirect("/auth/signin");
+  }
+
   return (
-    <ProtectedRoute>
-      <PageContainer>
-        <MarketIntelligenceHub />
-      </PageContainer>
-    </ProtectedRoute>
+    <PageContainer>
+      <MarketIntelligenceHub />
+    </PageContainer>
   );
 }

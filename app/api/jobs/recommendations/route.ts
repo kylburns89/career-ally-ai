@@ -1,5 +1,7 @@
-import { createClient } from "../../../../lib/supabase/server";
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../auth/auth-options";
+import { prisma } from "../../../../lib/prisma";
 import { createChatCompletion } from "../../../../lib/openai";
 
 export async function GET() {
@@ -9,44 +11,27 @@ export async function GET() {
       return new NextResponse("Server configuration error", { status: 500 });
     }
 
-    // Create a new supabase client
-    const supabase = await createClient();
-
-    // Get the session
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-    // Log auth state for debugging
-    console.log("[JOBS_RECOMMENDATIONS] Auth state:", {
-      hasSession: !!session,
-      userId: session?.user?.id,
-      error: sessionError?.message
-    });
-
-    if (sessionError) {
-      console.error("[JOBS_RECOMMENDATIONS] Auth Error:", sessionError);
-      return new NextResponse("Authentication error", { status: 401 });
-    }
+    const session = await getServerSession(authOptions);
     
-    if (!session?.user?.id) {
+    if (!session?.user?.email) {
       console.error("[JOBS_RECOMMENDATIONS] No valid session");
-      return new NextResponse("Unauthorized - No valid session", { status: 401 });
+      return new NextResponse("Unauthorized", { status: 401 });
     }
 
-    console.log("[JOBS_RECOMMENDATIONS] Authenticated user:", session.user.id);
+    console.log("[JOBS_RECOMMENDATIONS] Authenticated user:", session.user.email);
 
     // Get user's profile
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select()
-      .eq("id", session.user.id)
-      .single();
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+      include: { profile: true }
+    });
 
-    if (profileError) {
-      console.error("[JOBS_RECOMMENDATIONS] Profile Error:", profileError);
-      return new NextResponse("Error fetching profile", { status: 500 });
+    if (!user) {
+      console.error("[JOBS_RECOMMENDATIONS] User not found");
+      return new NextResponse("User not found", { status: 404 });
     }
 
-    if (!profile) {
+    if (!user.profile) {
       return NextResponse.json({ 
         error: "Please complete your profile to get personalized job recommendations" 
       }, { status: 400 });
@@ -56,22 +41,22 @@ export async function GET() {
     const prompt = `Based on the following professional profile, suggest 5 suitable job roles with brief descriptions. Return ONLY the JSON object with no additional formatting or markdown.
 
     Profile:
-    - Title: ${profile.title || 'Not specified'}
-    - Skills: ${profile.skills?.join(', ') || 'Not specified'}
-    - Years of Experience: ${profile.years_experience || 'Not specified'}
-    - Industries: ${profile.industries?.join(', ') || 'Not specified'}
-    - Desired Salary: ${profile.desired_salary ? '$' + profile.desired_salary : 'Not specified'}
-    - Desired Location: ${profile.desired_location || 'Not specified'}
-    - Remote Only: ${profile.remote_only ? 'Yes' : 'No'}
+    - Title: ${user.profile.headline || 'Not specified'}
+    - Summary: ${user.profile.summary || 'Not specified'}
+    - Skills: ${user.profile.skills?.join(', ') || 'Not specified'}
+    - Location: ${user.profile.location || 'Not specified'}
+    - Experience: ${JSON.stringify(user.profile.experience) || 'Not specified'}
+    - Education: ${JSON.stringify(user.profile.education) || 'Not specified'}
+    - Certifications: ${JSON.stringify(user.profile.certifications) || 'Not specified'}
     
     The response should be EXACTLY in this format with no additional text or formatting:
     {
       "recommendations": [
         {
           "title": "Job Title",
-          "description": "Brief job description and why it's a good fit",
-          "estimatedSalary": "Salary range",
-          "requiredSkills": ["skill1", "skill2"],
+          "description": "Brief job description and why it's a good fit based on the profile",
+          "estimatedSalary": "Salary range based on experience and skills",
+          "requiredSkills": ["skill1", "skill2", "skill3"],
           "matchScore": 85
         }
       ]

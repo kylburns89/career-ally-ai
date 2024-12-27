@@ -1,7 +1,7 @@
 import type { ResumeContent, ResumeAnalysis } from '../../../types/resume';
 import { createChatCompletion } from '../../../lib/openai';
 import { createClient } from '@supabase/supabase-js';
-import type { Json } from '../../../types/database';
+import { Prisma } from '@prisma/client';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -68,8 +68,8 @@ export async function POST(request: Request) {
     const structuredAnalysis = structureAnalysis(analysis);
 
     // Cache the results
-    const resumeJson: Json = JSON.parse(JSON.stringify(resume));
-    const analysisJson: Json = JSON.parse(JSON.stringify(structuredAnalysis));
+    const resumeJson: Prisma.JsonValue = JSON.parse(JSON.stringify(resume));
+    const analysisJson: Prisma.JsonValue = JSON.parse(JSON.stringify(structuredAnalysis));
 
     await supabase.from("resume_analyses").upsert({
       resume_id: resumeId,

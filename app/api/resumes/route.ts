@@ -1,42 +1,49 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { validateData, resumeSchema } from "@/lib/validations";
-import { formToDbFormat } from "@/types/resume";
-import type { SavedResume } from "@/types/resume";
+import { validateData, resumeSchema, newResumeSchema } from "../../../lib/validations";
+import { formToDbFormat } from "../../../types/resume";
+import { getServerSession } from "next-auth";
+import { authOptions } from "../auth/auth-options";
+import { prisma } from "../../../lib/prisma";
 
 export const dynamic = 'force-dynamic';
 
-// GET /api/resumes - Get all resumes for the current user
+// GET /api/resumes - Get all resumes for the authenticated user
 export async function GET() {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
-    
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    if (sessionError) {
-      console.error("Session error:", sessionError);
-      throw new Error("Failed to get session");
-    }
-    
-    if (!session) {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
       return new Response(
-        JSON.stringify({ message: "Unauthorized" }),
+        JSON.stringify({ message: "Authentication required" }),
         { status: 401, headers: { "Content-Type": "application/json" } }
       );
     }
 
-    const { data: resumes, error: fetchError } = await supabase
-      .from("resumes")
-      .select("*")
-      .eq("user_id", session.user.id)
-      .order("updated_at", { ascending: false });
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+    });
 
-    if (fetchError) {
-      console.error("Fetch error:", fetchError);
-      throw fetchError;
+    if (!user) {
+      return new Response(
+        JSON.stringify({ message: "User not found" }),
+        { status: 404, headers: { "Content-Type": "application/json" } }
+      );
     }
 
-    return NextResponse.json(resumes || []);
+    const resumes = await prisma.resume.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        userId: true,
+        title: true,
+        content: true,
+        template: true,
+        createdAt: true,
+        updatedAt: true,
+      }
+    });
+
+    return NextResponse.json(resumes);
   } catch (error) {
     console.error("GET /api/resumes error:", error);
     return new Response(
@@ -52,19 +59,22 @@ export async function GET() {
 // POST /api/resumes - Create a new resume
 export async function POST(req: Request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
-    
-    // Check session
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    if (sessionError) {
-      console.error("Session error:", sessionError);
-      throw new Error("Failed to get session");
-    }
-    
-    if (!session) {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
       return new Response(
-        JSON.stringify({ message: "Unauthorized" }),
+        JSON.stringify({ message: "Authentication required" }),
         { status: 401, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+    });
+
+    if (!user) {
+      return new Response(
+        JSON.stringify({ message: "User not found" }),
+        { status: 404, headers: { "Content-Type": "application/json" } }
       );
     }
 
@@ -72,7 +82,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     console.log("Received resume data:", JSON.stringify(body, null, 2));
     
-    const validation = await validateData(resumeSchema, body.content);
+    const validation = await validateData(newResumeSchema, body.content);
     if (!validation.success) {
       console.error("Validation error:", validation.error);
       return new Response(
@@ -84,37 +94,30 @@ export async function POST(req: Request) {
       );
     }
 
-    // Convert form data to database format
-    const dbContent = formToDbFormat(validation.data);
+    // Convert form data to database format and ensure it's JSON-compatible
+    const dbContent = JSON.parse(JSON.stringify(formToDbFormat(validation.data)));
 
-    console.log("Preparing resume data:", {
-      user_id: session.user.id,
-      name: body.name,
-      content: JSON.stringify(dbContent, null, 2)
+    // Create new resume in database
+    const newResume = await prisma.resume.create({
+      data: {
+        userId: user.id,
+        title: body.title,
+        content: dbContent,
+        template: body.template || 'professional',
+      },
+      select: {
+        id: true,
+        userId: true,
+        title: true,
+        content: true,
+        template: true,
+        createdAt: true,
+        updatedAt: true,
+      }
     });
 
-    // Insert resume
-    const { data: resume, error: insertError } = await supabase
-      .from("resumes")
-      .upsert({
-        user_id: session.user.id,
-        name: body.name,
-        content: dbContent,
-      })
-      .select()
-      .single();
-
-    if (insertError) {
-      console.error("Insert error:", insertError);
-      throw insertError;
-    }
-
-    if (!resume) {
-      throw new Error("Failed to create resume - no data returned");
-    }
-
-    console.log("Successfully saved resume:", resume);
-    return NextResponse.json(resume);
+    console.log("Successfully saved resume:", newResume);
+    return NextResponse.json(newResume);
   } catch (error) {
     console.error("POST /api/resumes error:", error);
     return new Response(

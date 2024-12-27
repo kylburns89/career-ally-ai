@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { RocketIcon, SparklesIcon, BrainIcon, ShieldCheckIcon, HeartIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useAuthContext } from "@/components/auth/auth-provider";
+import { useSession } from "next-auth/react";
 
 const benefits = [
   {
@@ -25,7 +25,7 @@ const benefits = [
   {
     icon: ShieldCheckIcon,
     title: "Privacy First",
-    description: "Your data is secure and private stored in Supabase, a secure and compliant platform."
+    description: "Your data is secure and private, protected by industry-standard security measures."
   },
   {
     icon: HeartIcon,
@@ -36,7 +36,8 @@ const benefits = [
 
 export default function About() {
   const router = useRouter();
-  const { session, loading } = useAuthContext();
+  const { data: session, status } = useSession();
+  const loading = status === "loading";
 
   const handleStartJourney = () => {
     // If still loading, show loading state in button
@@ -54,7 +55,7 @@ export default function About() {
       console.log('User is not authenticated, redirecting to login...');
       // Ensure we're using the full URL for the redirect
       const currentUrl = window.location.origin;
-      const redirectUrl = new URL('/auth/login', currentUrl);
+      const redirectUrl = new URL('/auth/signin', currentUrl);
       redirectUrl.searchParams.set('redirectTo', '/tracker');
       router.push(redirectUrl.toString());
     }

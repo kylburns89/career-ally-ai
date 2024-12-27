@@ -1,141 +1,155 @@
 import { NextResponse } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
-import { searchLearningResources, searchCertifications } from '../../../lib/brave';
-import { SkillGap, LearningResource } from '../../../types/learning';
+import { getServerSession } from 'next-auth';
+import { prisma } from '../../../lib/prisma';
+import { PrismaClient } from '@prisma/client';
+import { searchLearningResources } from '../../../lib/brave';
+import { SkillGap, LearningResource, LearningPathModel } from '../../../types/learning';
 import { AdaptedSearchResult } from '../../../types/brave';
 
-interface SkillInput {
-  name: string;
-  currentLevel: number;
-  targetLevel: number;
+// Define the database model type
+interface DbLearningPath {
+  id: string;
+  userId: string;
+  title: string;
+  description: string | null;
+  skillGaps: string;
+  resources: string;
+  completed: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 }
+
+// Type assertion for Prisma client with our model
+const db = prisma as PrismaClient & {
+  learningPath: {
+    create: (args: { data: any }) => Promise<any>;
+    findMany: (args: { where: any; orderBy: any }) => Promise<DbLearningPath[]>;
+    delete: (args: { where: any }) => Promise<any>;
+  };
+};
 
 export async function POST(request: Request) {
   console.log('POST /api/learning-path - Start');
   try {
-    const supabase = createRouteHandlerClient({ cookies });
-    
-    // Verify authentication
-    console.log('Verifying authentication');
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    // Verify authentication using NextAuth
+    const session = await getServerSession();
+    if (!session?.user?.email) {
       console.log('No session found');
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
     }
-    console.log('User authenticated:', session.user.id);
+    console.log('User authenticated:', session.user.email);
 
     const body = await request.json();
     console.log('Request body:', body);
     
-    const { skills, userId } = body as { 
-      skills: SkillInput[],
-      userId: string 
-    };
+    const { skillGaps } = body as { skillGaps: SkillGap[] };
 
-    if (!skills?.length) {
-      console.log('No skills provided');
+    if (!skillGaps?.length) {
+      console.log('No skill gaps provided');
       return NextResponse.json(
-        { error: 'Skills are required' },
+        { error: 'Skill gaps are required' },
         { status: 400 }
       );
     }
 
-    // Verify the authenticated user matches the requested userId
-    if (session.user.id !== userId) {
-      console.log('User ID mismatch');
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+    console.log('Processing skill gaps:', skillGaps);
+    const resources: LearningResource[] = [];
 
-    console.log('Processing skills:', skills);
-    const skillGaps: SkillGap[] = [];
-
-    for (const skill of skills) {
+    for (const gap of skillGaps) {
       try {
-        console.log(`Processing skill: ${skill.name}`);
+        console.log(`Processing skill: ${gap.skill}`);
         
+        // Add delay between requests to avoid rate limits
+        if (gap !== skillGaps[0]) {
+          await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
+        }
+
         // Search for learning resources
         console.log('Searching for learning resources');
         const resourcesResponse = await searchLearningResources(
-          `${skill.name} tutorials courses learning resources`
-        );
-        console.log(`Found ${resourcesResponse.results.length} learning resources`);
-
-        // Search for relevant certifications
-        console.log('Searching for certifications');
-        const certificationsResponse = await searchCertifications(skill.name);
-        console.log(`Found ${certificationsResponse.results.length} certifications`);
-
-        // Transform search results into learning resources
-        const resources: LearningResource[] = resourcesResponse.results.map((result: AdaptedSearchResult) => ({
-          id: crypto.randomUUID(),
-          title: result.title,
-          url: result.url,
-          provider: result.source,
-          type: result.url.includes('certification') ? 'certification' : 'course',
-          skillArea: skill.name,
-          completed: false,
-          progress: 0
-        }));
-
-        skillGaps.push({
-          skill: skill.name,
-          currentLevel: skill.currentLevel,
-          targetLevel: skill.targetLevel,
-          resources,
-          certifications: certificationsResponse.results
+          `${gap.skill} tutorials courses learning resources`
+        ).catch(error => {
+          if (error.message.includes('429')) {
+            throw new Error('Rate limit reached. Please try again in a few moments.');
+          }
+          throw error;
         });
         
-        console.log(`Successfully processed skill: ${skill.name}`);
+        if (!resourcesResponse?.results?.length) {
+          console.log(`No resources found for ${gap.skill}`);
+          return;
+        }
+        
+        console.log(`Found ${resourcesResponse.results.length} learning resources`);
+
+        // Transform search results into learning resources
+        const skillResources: LearningResource[] = resourcesResponse.results.slice(0, 3).map((result: AdaptedSearchResult) => ({
+          title: result.title,
+          url: result.url,
+          description: result.content || 'No description available',
+          provider: result.source || 'Unknown',
+          type: result.url.includes('certification') ? 'certification' : 'course',
+          duration: 'Varies',
+          skills: [gap.skill],
+          difficulty: gap.currentLevel ? 
+            gap.currentLevel.toLowerCase().includes('begin') ? 'Beginner' :
+            gap.currentLevel.toLowerCase().includes('inter') ? 'Intermediate' :
+            'Advanced' : 'Intermediate'
+        }));
+
+        resources.push(...skillResources);
+        
+        console.log(`Successfully processed skill: ${gap.skill}`);
       } catch (error) {
-        console.error(`Error processing skill ${skill.name}:`, error);
+        console.error(`Error processing skill ${gap.skill}:`, error);
         // Continue with other skills if one fails
         continue;
       }
     }
 
-    if (skillGaps.length === 0) {
-      console.log('No skill gaps were successfully processed');
+    if (resources.length === 0) {
+      console.log('No learning resources were found');
       return NextResponse.json(
-        { error: 'Failed to generate learning resources' },
-        { status: 500 }
+        { error: 'No learning resources found. This may be due to rate limiting. Please try again in a few moments.' },
+        { status: 429 }
+      );
+    }
+
+    // Find user by email
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email }
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
       );
     }
 
     // Store the learning path in the database
-    console.log('Storing learning path in database');
-    const { data, error } = await supabase
-      .from('learning_paths')
-      .insert({
-        user_id: userId,
-        title: 'Custom Learning Path',
-        description: 'Based on your skill gaps',
-        skill_gaps: JSON.stringify(skillGaps),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .select()
-      .single();
+    const learningPath = await db.learningPath.create({
+      data: {
+        userId: user.id,
+        title: `Learning Path - ${new Date().toLocaleDateString()}`,
+        description: 'Generated learning path based on skill gaps',
+        skillGaps: JSON.stringify(skillGaps),
+        resources: JSON.stringify(resources.slice(0, 10)), // Store top 10 most relevant resources
+        completed: false // Default to not completed
+      }
+    });
 
-    if (error) {
-      console.error('Database error:', error);
-      throw error;
-    }
+    // Parse data back to objects for response
+    const response = {
+      ...learningPath,
+      skillGaps: JSON.parse(learningPath.skillGaps as string),
+      resources: JSON.parse(learningPath.resources as string)
+    } as LearningPathModel;
 
     console.log('Learning path created successfully');
-    // Parse the skill_gaps back to an object before returning
-    const response = {
-      ...data,
-      skill_gaps: JSON.parse(data.skill_gaps as string)
-    };
-    
-    console.log('Sending response');
     return NextResponse.json(response);
   } catch (error) {
     console.error('Error creating learning path:', error);
@@ -149,66 +163,105 @@ export async function POST(request: Request) {
 export async function GET(request: Request) {
   console.log('GET /api/learning-path - Start');
   try {
-    const supabase = createRouteHandlerClient({ cookies });
-    
-    // Verify authentication
-    console.log('Verifying authentication');
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    // Verify authentication using NextAuth
+    const session = await getServerSession();
+    if (!session?.user?.email) {
       console.log('No session found');
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
     }
-    console.log('User authenticated:', session.user.id);
+    console.log('User authenticated:', session.user.email);
 
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
+    // Find user by email
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email }
+    });
 
-    if (!userId) {
-      console.log('No userId provided');
+    if (!user) {
       return NextResponse.json(
-        { error: 'User ID is required' },
-        { status: 400 }
+        { error: 'User not found' },
+        { status: 404 }
       );
     }
 
-    // Verify the authenticated user matches the requested userId
-    if (session.user.id !== userId) {
-      console.log('User ID mismatch');
+    console.log('Fetching learning paths from database');
+    const learningPaths = await db.learningPath.findMany({
+      where: {
+        userId: user.id
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    // Parse skillGaps and resources for each learning path
+    const parsedPaths = learningPaths.map((path: DbLearningPath) => {
+      try {
+        return {
+          ...path,
+          skillGaps: JSON.parse(path.skillGaps),
+          resources: JSON.parse(path.resources)
+        } as LearningPathModel;
+      } catch (error) {
+        console.error(`Error parsing JSON for path ${path.id}:`, error);
+        return {
+          ...path,
+          skillGaps: [],
+          resources: []
+        } as LearningPathModel;
+      }
+    });
+
+    console.log(`Found ${learningPaths.length} learning paths`);
+    return NextResponse.json(parsedPaths);
+  } catch (error) {
+    console.error('Error fetching learning paths:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch learning paths' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  context: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession();
+    if (!session?.user?.email) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       );
     }
 
-    console.log('Fetching learning paths from database');
-    const { data, error } = await supabase
-      .from('learning_paths')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email }
+    });
 
-    if (error) {
-      console.error('Database error:', error);
-      throw error;
+    if (!user) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
     }
 
-    console.log(`Found ${data?.length || 0} learning paths`);
+    // Delete the learning path
+    await db.learningPath.delete({
+      where: {
+        id: context.params.id,
+        userId: user.id
+      }
+    });
 
-    // Parse the skill_gaps JSON string for each learning path
-    const parsedData = data?.map(path => ({
-      ...path,
-      skill_gaps: JSON.parse(path.skill_gaps as string)
-    }));
-
-    console.log('Sending response');
-    return NextResponse.json(parsedData);
+    return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error fetching learning paths:', error);
+    console.error('Error deleting learning path:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch learning paths' },
+      { error: 'Failed to delete learning path' },
       { status: 500 }
     );
   }

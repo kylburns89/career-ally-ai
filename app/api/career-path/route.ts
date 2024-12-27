@@ -1,64 +1,29 @@
-import { createServerClient } from '@supabase/ssr';
-import { ResponseCookie } from 'next/dist/compiled/@edge-runtime/cookies';
-import { cookies } from 'next/headers';
-import { Database } from '../../../types/database';
-import { generateCareerPath } from '../../../lib/openai';
+import { getServerSession } from "next-auth";
 import { NextResponse } from 'next/server';
-
-interface Education {
-  degree: string;
-  field: string;
-}
-
-interface Experience {
-  title: string;
-  company: string;
-}
+import { prisma } from '../../../lib/prisma';
+import { generateCareerPath } from '../../../lib/openai';
+import { authOptions } from "../auth/auth-options";
 
 export async function POST(req: Request) {
   try {
-    const { useProfile, careerInput } = await req.json();
-    const cookieStore = cookies();
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          get(name: string) {
-            return cookieStore.get(name)?.value;
-          },
-          set(name: string, value: string, options: Partial<ResponseCookie>) {
-            cookieStore.set({
-              name,
-              value,
-              ...options,
-              // Ensure secure cookies in production
-              secure: process.env.NODE_ENV === 'production',
-              // Support OAuth flows
-              sameSite: 'lax',
-              // Set path to root
-              path: '/',
-            });
-          },
-          remove(name: string, options: Partial<ResponseCookie>) {
-            cookieStore.set({
-              name,
-              value: '',
-              ...options,
-              maxAge: 0,
-            });
-          },
-        },
-      }
-    );
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
 
+    const { useProfile, careerInput } = await req.json();
     let prompt = '';
     
     if (useProfile) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .single();
+      const profile = await prisma.profile.findUnique({
+        where: {
+          userId: session.user.id
+        }
+      });
 
       if (!profile) {
         return NextResponse.json(
@@ -67,19 +32,19 @@ export async function POST(req: Request) {
         );
       }
 
+      const experience = profile.experience as Array<{ title: string; company: string }>;
+      const education = profile.education as Array<{ degree: string; field: string }>;
+      const certifications = profile.certifications as Array<{ name: string }>;
+
       prompt = `You are a career progression expert. Analyze the following profile and generate a detailed career path. Return ONLY a JSON object with no additional text. The response must start with "{" and end with "}".
 
 Profile Information:
-Current Title: ${profile.title || 'Not specified'}
-Years of Experience: ${profile.years_experience || 'Not specified'}
+Current Title: ${profile.headline || 'Not specified'}
 Skills: ${profile.skills?.join(', ') || 'Not specified'}
-Industries: ${profile.industries?.join(', ') || 'Not specified'}
-Education: ${(profile.education as Education[])?.map(edu => `${edu.degree} in ${edu.field}`).join(', ') || 'Not specified'}
-Experience: ${(profile.experience as Experience[])?.map(exp => `${exp.title} at ${exp.company}`).join(', ') || 'Not specified'}
-Certifications: ${profile.certifications?.join(', ') || 'Not specified'}
-Desired Salary: ${profile.desired_salary ? `$${profile.desired_salary}` : 'Not specified'}
-Desired Location: ${profile.desired_location || 'Not specified'}
-Remote Only: ${profile.remote_only ? 'Yes' : 'No'}
+Location: ${profile.location || 'Not specified'}
+Education: ${education?.map(edu => `${edu.degree} in ${edu.field}`).join(', ') || 'Not specified'}
+Experience: ${experience?.map(exp => `${exp.title} at ${exp.company}`).join(', ') || 'Not specified'}
+Certifications: ${certifications?.map(cert => cert.name).join(', ') || 'Not specified'}
 
 The response must exactly match this structure:
 {

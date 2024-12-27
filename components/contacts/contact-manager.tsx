@@ -1,8 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { useContacts } from "../../hooks/use-contacts"
-import { Contact, CommunicationEntry } from "../../types/contact"
+import { useApplications } from "../../hooks/use-applications"
+import { Contact } from "../../types/contact"
+import { Application } from "../../types/application"
 import { Button } from "../ui/button"
 import {
   Dialog,
@@ -41,11 +43,13 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { toast } from "sonner"
 
 export function ContactManager() {
-  const { contacts, stats, isLoading, addContact, updateContact, deleteContact, addCommunication } = useContacts()
+  const { contacts, stats, isLoading: contactsLoading, addContact, updateContact, deleteContact, linkApplication, unlinkApplication } = useContacts()
+  const { applications, isLoading: applicationsLoading, fetchApplications } = useApplications()
+  const unlinkedApplications = applications.filter(app => !app.contactId)
+  const [showApplicationsDialog, setShowApplicationsDialog] = useState(false)
+  const [selectedContact, setSelectedContact] = useState<Contact | null>(null)
   const [isOpen, setIsOpen] = useState(false)
   const [isEditMode, setIsEditMode] = useState(false)
-  const [showCommunicationDialog, setShowCommunicationDialog] = useState(false)
-  const [selectedContactId, setSelectedContactId] = useState<string | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [contactToDelete, setContactToDelete] = useState<string | null>(null)
   const [newContact, setNewContact] = useState<Partial<Contact>>({
@@ -54,26 +58,18 @@ export function ContactManager() {
     title: "",
     email: "",
     phone: "",
-    linkedin_url: "",
+    linkedinUrl: "",
     relationship_score: 50,
     notes: "",
   })
-  const [newCommunication, setNewCommunication] = useState<Partial<CommunicationEntry>>({
-    type: "email",
-    summary: "",
-    sentiment: "neutral",
-    followup_needed: false,
-    notes: "",
-  })
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      if (isEditMode && selectedContactId) {
-        await updateContact(selectedContactId, newContact)
+      if (isEditMode && selectedContact) {
+        await updateContact(selectedContact.id, newContact)
         toast.success(`Updated contact: ${newContact.name}`)
       } else {
-        await addContact(newContact as Omit<Contact, "id" | "user_id" | "created_at" | "updated_at" | "communication_history">)
+        await addContact(newContact as Omit<Contact, "id" | "userId" | "createdAt" | "updatedAt">)
         toast.success(`Added new contact: ${newContact.name}`)
       }
       setIsOpen(false)
@@ -91,11 +87,11 @@ export function ContactManager() {
       title: contact.title,
       email: contact.email,
       phone: contact.phone,
-      linkedin_url: contact.linkedin_url,
+      linkedinUrl: contact.linkedinUrl,
       relationship_score: contact.relationship_score,
       notes: contact.notes,
     })
-    setSelectedContactId(contact.id)
+    setSelectedContact(contact)
     setIsEditMode(true)
     setIsOpen(true)
   }
@@ -119,23 +115,6 @@ export function ContactManager() {
     }
   }
 
-  const handleAddCommunication = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (selectedContactId && newCommunication.type && newCommunication.summary) {
-      try {
-        await addCommunication(selectedContactId, newCommunication as Omit<CommunicationEntry, "date">)
-        toast.success("Communication entry added successfully")
-        setShowCommunicationDialog(false)
-        resetCommunicationForm()
-      } catch (error) {
-        console.error('Error adding communication:', error)
-        toast.error(error instanceof Error ? error.message : 'Failed to add communication entry')
-      }
-    } else {
-      toast.error("Please fill in all required fields")
-    }
-  }
-
   const resetForm = () => {
     setNewContact({
       name: "",
@@ -143,31 +122,27 @@ export function ContactManager() {
       title: "",
       email: "",
       phone: "",
-      linkedin_url: "",
+      linkedinUrl: "",
       relationship_score: 50,
       notes: "",
     })
     setIsEditMode(false)
-    setSelectedContactId(null)
+    setSelectedContact(null)
   }
 
-  const resetCommunicationForm = () => {
-    setNewCommunication({
-      type: "email",
-      summary: "",
-      sentiment: "neutral",
-      followup_needed: false,
-      notes: "",
-    })
-  }
+  useEffect(() => {
+    if (showApplicationsDialog) {
+      fetchApplications()
+    }
+  }, [showApplicationsDialog, fetchApplications])
 
-  if (isLoading) {
+  if (contactsLoading) {
     return <div>Loading...</div>
   }
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardHeader>
             <CardTitle>Total Contacts</CardTitle>
@@ -186,29 +161,11 @@ export function ContactManager() {
             <p className="text-3xl font-bold">{Math.round(stats.averageRelationshipScore)}/100</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Need Follow-up</CardTitle>
-            <CardDescription>Pending interactions</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold">{stats.needsFollowup}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>Last 30 days</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold">{stats.recentCommunications}</p>
-          </CardContent>
-        </Card>
       </div>
 
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">Contacts</h2>
-        <Dialog open={isOpen} onOpenChange={(open) => {
+        <Dialog open={isOpen} onOpenChange={(open: boolean) => {
           setIsOpen(open)
           if (!open) resetForm()
         }}>
@@ -269,8 +226,8 @@ export function ContactManager() {
                 <label htmlFor="linkedin">LinkedIn URL</label>
                 <Input
                   id="linkedin"
-                  value={newContact.linkedin_url || ""}
-                  onChange={(e) => setNewContact({ ...newContact, linkedin_url: e.target.value })}
+                  value={newContact.linkedinUrl || ""}
+                  onChange={(e) => setNewContact({ ...newContact, linkedinUrl: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
@@ -280,8 +237,8 @@ export function ContactManager() {
                   type="number"
                   min="0"
                   max="100"
-                  value={newContact.relationship_score || 50}
-                  onChange={(e) => setNewContact({ ...newContact, relationship_score: parseInt(e.target.value) })}
+          value={newContact.relationship_score || 50}
+          onChange={(e) => setNewContact({ ...newContact, relationship_score: parseInt(e.target.value) })}
                 />
               </div>
               <div className="space-y-2">
@@ -298,87 +255,12 @@ export function ContactManager() {
         </Dialog>
       </div>
 
-      <Dialog open={showCommunicationDialog} onOpenChange={setShowCommunicationDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add Communication</DialogTitle>
-            <DialogDescription>
-              Record a new interaction with this contact
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleAddCommunication} className="space-y-4">
-            <div className="space-y-2">
-              <label htmlFor="type">Type</label>
-              <Select
-                value={newCommunication.type}
-                onValueChange={(value) => setNewCommunication({ ...newCommunication, type: value as CommunicationEntry["type"] })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="email">Email</SelectItem>
-                  <SelectItem value="phone">Phone</SelectItem>
-                  <SelectItem value="meeting">Meeting</SelectItem>
-                  <SelectItem value="linkedin">LinkedIn</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="summary">Summary *</label>
-              <Textarea
-                id="summary"
-                value={newCommunication.summary}
-                onChange={(e) => setNewCommunication({ ...newCommunication, summary: e.target.value })}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="sentiment">Sentiment</label>
-              <Select
-                value={newCommunication.sentiment}
-                onValueChange={(value) => setNewCommunication({ ...newCommunication, sentiment: value as CommunicationEntry["sentiment"] })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select sentiment" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="positive">Positive</SelectItem>
-                  <SelectItem value="neutral">Neutral</SelectItem>
-                  <SelectItem value="negative">Negative</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <label className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  checked={newCommunication.followup_needed}
-                  onChange={(e) => setNewCommunication({ ...newCommunication, followup_needed: e.target.checked })}
-                />
-                <span>Needs Follow-up</span>
-              </label>
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="notes">Notes</label>
-              <Textarea
-                id="notes"
-                value={newCommunication.notes}
-                onChange={(e) => setNewCommunication({ ...newCommunication, notes: e.target.value })}
-              />
-            </div>
-            <Button type="submit">Add Communication</Button>
-          </form>
-        </DialogContent>
-      </Dialog>
-
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. This will permanently delete the contact and all associated communication history.
+              This action cannot be undone. This will permanently delete the contact.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -396,8 +278,8 @@ export function ContactManager() {
               <TableHead>Company</TableHead>
               <TableHead>Title</TableHead>
               <TableHead>Relationship</TableHead>
-              <TableHead>Last Contact</TableHead>
-              <TableHead>Actions</TableHead>
+              <TableHead>Applications</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -420,21 +302,41 @@ export function ContactManager() {
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  {contact.last_contact_date
-                    ? new Date(contact.last_contact_date).toLocaleDateString()
-                    : "Never"}
+                  {contact.applications && contact.applications.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {contact.applications.map((app) => (
+                        <Badge
+                          key={app.id}
+                          variant="outline"
+                          className={
+                            app.status === "offer"
+                              ? "bg-green-100"
+                              : app.status === "interviewing"
+                              ? "bg-blue-100"
+                              : app.status === "rejected"
+                              ? "bg-red-100"
+                              : "bg-gray-100"
+                          }
+                        >
+                          {app.company} - {app.jobTitle}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="text-gray-500">No linked applications</span>
+                  )}
                 </TableCell>
                 <TableCell>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center justify-end space-x-2">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        setSelectedContactId(contact.id)
-                        setShowCommunicationDialog(true)
+                        setSelectedContact(contact)
+                        setShowApplicationsDialog(true)
                       }}
                     >
-                      Add Communication
+                      Manage Applications
                     </Button>
                     <Button
                       variant="outline"
@@ -457,6 +359,82 @@ export function ContactManager() {
           </TableBody>
         </Table>
       </div>
+
+      <Dialog open={showApplicationsDialog} onOpenChange={setShowApplicationsDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Manage Applications - {selectedContact?.name}</DialogTitle>
+            <DialogDescription>
+              Link or unlink job applications for this contact
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <h3 className="font-medium">Linked Applications</h3>
+              {selectedContact?.applications && selectedContact.applications.length > 0 ? (
+                <div className="space-y-2">
+                  {selectedContact.applications.map((app) => (
+                    <div key={app.id} className="flex items-center justify-between p-2 border rounded">
+                      <div>
+                        <p className="font-medium">{app.jobTitle}</p>
+                        <p className="text-sm text-gray-500">{app.company}</p>
+                        <Badge className="mt-1">{app.status}</Badge>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={async () => {
+                          await unlinkApplication(app.id)
+                          toast.success("Application unlinked successfully")
+                        }}
+                      >
+                        Unlink
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500">No applications linked to this contact</p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <h3 className="font-medium">Available Applications</h3>
+              <div className="space-y-2">
+                {applicationsLoading ? (
+                  <p className="text-gray-500">Loading applications...</p>
+                ) : unlinkedApplications.length > 0 ? (
+                  <div className="space-y-2">
+                    {unlinkedApplications.map((app) => (
+                      <div key={app.id} className="flex items-center justify-between p-2 border rounded">
+                        <div>
+                          <p className="font-medium">{app.jobTitle}</p>
+                          <p className="text-sm text-gray-500">{app.company}</p>
+                          <Badge className="mt-1">{app.status}</Badge>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={async () => {
+                            if (selectedContact) {
+                              await linkApplication(selectedContact.id, app.id)
+                              toast.success("Application linked successfully")
+                              fetchApplications() // Refresh the list
+                            }
+                          }}
+                        >
+                          Link
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-500">No available applications to link</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

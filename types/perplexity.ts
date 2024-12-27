@@ -1,38 +1,7 @@
-export interface PerplexityMessage {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
-}
-
-export interface PerplexityChoice {
-  index: number;
-  finish_reason: string;
-  message: PerplexityMessage;
-  delta?: {
-    role: string;
-    content: string;
-  };
-}
-
-export interface PerplexityResponse {
-  id: string;
-  model: string;
-  object: 'chat.completion';
-  created: number;
-  citations: string[];
-  choices: PerplexityChoice[];
-  usage: {
-    prompt_tokens: number;
-    completion_tokens: number;
-    total_tokens: number;
-  };
-}
-
 export interface Source {
-  id: number;
   title: string;
   url: string;
-  icon: string;
-  description: string;
+  description?: string;
 }
 
 export interface MarketAnalysis {
@@ -84,23 +53,9 @@ export interface MarketAnalysis {
       }>;
     };
   };
-  careerGrowth: {
-    content: string;
-    paths: Array<{
-      role: string;
-      salary: number;
-      description: string;
-      citation: number;
-    }>;
-  };
-  marketOutlook: {
-    content: string;
-    keyPoints: string[];
-    citation: number;
-  };
-  certifications: {
-    content: string;
-    citation: number;
-  };
   sources: Source[];
+  relatedQuestions: Array<{
+    question: string;
+    description: string;
+  }>;
 }

@@ -18,7 +18,7 @@ const togetherStream = createOpenAI({
   baseURL: "https://api.together.xyz/v1",
 });
 
-export async function generateMarketAnalysis(role: string, searchResults: AdaptedSearchResult[]): Promise<Response> {
+export async function generateMarketAnalysis(role: string, searchResults: AdaptedSearchResult[]): Promise<MarketAnalysis> {
   // Create a mapping of search results with their URLs for citation
   const sourcesWithUrls = searchResults.map((result, index) => ({
     id: index + 1,
@@ -35,6 +35,9 @@ Here are the search results to use as sources:
 ${searchResults.map((result, index) => `[${index + 1}] ${result.content}\nSource: ${result.url}\n\n`)}
 
 Generate a market analysis JSON object for ${role} positions following these rules:
+9. For relatedQuestions, generate 5 contextual questions based on the analysis, replacing [role] with "${role}"
+10. Each question should focus on a different aspect (trends, requirements, progression, compensation, skills)
+11. Questions should reference specific insights from the analysis
 1. Return ONLY the raw JSON object - no explanations or text before/after
 2. Use numbers for all numerical values, no strings
 3. Salary values should be in USD without currency symbols
@@ -45,13 +48,13 @@ Generate a market analysis JSON object for ${role} positions following these rul
 8. The JSON must exactly match this structure:
 
 {
-  "overview": "The job market for [role] is [description]...",
+  "overview": "A concise overview of the current job market for this role",
   "demandAndOpportunities": {
-    "content": "The demand for [role] professionals is [analysis]...",
+    "content": "Analysis of current demand and future opportunities",
     "citations": [1, 3]
   },
   "salaryRange": {
-    "content": "[Role] professionals can expect competitive salaries:",
+    "content": "Overview of salary expectations",
     "rates": {
       "hourlyRate": {
         "average": 62.15,
@@ -74,56 +77,53 @@ Generate a market analysis JSON object for ${role} positions following these rul
       }
     },
     "locationFactors": {
-      "content": "New York, San Francisco, or Los Angeles offer higher salaries due to higher living costs",
+      "content": "How location affects salary (e.g., higher in major tech hubs)",
       "citation": 6
     },
     "industryFactors": {
-      "content": "Financial and healthcare industries tend to pay more than retail or hospitality",
+      "content": "How industry affects salary (e.g., higher in finance)",
       "citation": 6
     }
   },
   "skillsInDemand": {
-    "content": "Employers are seeking both technical and soft skills:",
+    "content": "Overview of required skills and competencies",
     "skills": {
       "core": [
-        "Platform expertise, including ITSM and ITOM",
-        "JavaScript and other programming languages",
-        "Database and SQL knowledge"
+        "List of core skills required",
+        "Both technical and soft skills"
       ],
       "technical": [
         {
-          "skill": "Scripting and development",
+          "skill": "Specific technical skill",
           "demandPercentage": 60,
           "citation": 3
         }
       ]
     }
   },
-  "careerGrowth": {
-    "content": "The [role] ecosystem offers strong career growth potential:",
-    "paths": [
-      {
-        "role": "Administrators",
-        "salary": 95000,
-        "description": "high demand and stable career",
-        "citation": 3
-      }
-    ]
-  },
-  "marketOutlook": {
-    "content": "The future looks bright for [role] professionals:",
-    "keyPoints": [
-      "Continued platform expansion and adoption by businesses",
-      "Essential role in digital transformation initiatives",
-      "Stable employment and competitive compensation expected"
-    ],
-    "citation": 3
-  },
-  "certifications": {
-    "content": "For those considering entering the field, obtaining certifications like CAD (Certified Application Developer) can be beneficial.",
-    "citation": 5
-  },
-  "sources": ${JSON.stringify(sourcesWithUrls, null, 2)}
+  "sources": ${JSON.stringify(sourcesWithUrls, null, 2)},
+  "relatedQuestions": [
+    {
+      "question": "string (A specific question about emerging trends mentioned in the analysis)",
+      "description": "string (Brief context about why this question is relevant)"
+    },
+    {
+      "question": "string (A specific question about industry requirements from the analysis)",
+      "description": "string (Brief context about why this question is relevant)"
+    },
+    {
+      "question": "string (A specific question about career paths based on the analysis)",
+      "description": "string (Brief context about why this question is relevant)"
+    },
+    {
+      "question": "string (A specific question about regional factors from the analysis)",
+      "description": "string (Brief context about why this question is relevant)"
+    },
+    {
+      "question": "string (A specific question about skills or certifications mentioned)",
+      "description": "string (Brief context about why this question is relevant)"
+    }
+  ]
 }`;
 
   try {
@@ -158,24 +158,7 @@ Generate a market analysis JSON object for ${role} positions following these rul
     // Parse the JSON to validate it
     const jsonContent = JSON.parse(jsonMatch[0]);
 
-    // Create a ReadableStream that sends the JSON in a single chunk
-    const encoder = new TextEncoder();
-    const stream = new ReadableStream({
-      start(controller) {
-        // Send the JSON string in a single chunk
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(jsonContent)}\n\n`));
-        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-        controller.close();
-      }
-    });
-
-    return new Response(stream, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive'
-      }
-    });
+    return jsonContent as MarketAnalysis;
   } catch (error) {
     console.error('Market analysis error:', error);
     throw error;

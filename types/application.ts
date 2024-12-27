@@ -1,57 +1,44 @@
+export interface CommunicationEntry {
+  date: string
+  type: 'email' | 'phone' | 'meeting' | 'linkedin' | 'other'
+  summary: string
+  sentiment: 'positive' | 'neutral' | 'negative'
+  followup_needed: boolean
+  notes?: string
+}
+
+export type JsonCommunicationEntry = {
+  [K in keyof CommunicationEntry]: CommunicationEntry[K]
+}
+
 export interface Application {
   id: string
-  user_id: string
+  userId: string
+  jobTitle: string
   company: string
-  job_title: string
+  location?: string | null
   status: string
-  applied_date: string
-  notes: string | null
-  resume_id: string | null
-  cover_letter_id: string | null
-  contact_id: string | null
-  created_at: string
-  updated_at: string
-  response_date: string | null
-  interview_date: string | null
-  offer_date: string | null
-  rejection_date: string | null
-  follow_up_dates: string[] | null
-  interview_feedback: string | null
-  salary_offered: number | null
-  application_method: string | null
-  application_source: string | null
-  interview_rounds: number
-  interview_types: string[] | null
-  skills_assessed: string[] | null
+  appliedDate: Date
+  contactId?: string | null
+  resumeId?: string | null
+  coverLetterId?: string | null
+  notes?: string | null
+  nextSteps?: string | null
+  communicationHistory?: JsonCommunicationEntry[]
+  createdAt: Date
+  updatedAt: Date
 }
 
-// Type for the Supabase query response
-export type ApplicationResponse = Application & {
-  resumes: { name: string } | null
-  cover_letters: { name: string } | null
-  contacts: { name: string; title: string | null } | null
-}
-
-// Type for the form state
 export interface ApplicationFormState {
   id?: string
+  jobTitle: string
   company: string
-  job_title: string
+  location?: string
   status: "applied" | "interviewing" | "offer" | "rejected"
-  notes: string
-  resume_id: string | null
-  cover_letter_id: string | null
-  contact_id: string | null
-  response_date?: string | null
-  interview_date?: string | null
-  offer_date?: string | null
-  rejection_date?: string | null
-  follow_up_dates?: string[] | null
-  interview_feedback?: string | null
-  salary_offered?: number | null
-  application_method?: string | null
-  application_source?: string | null
-  interview_rounds?: number
-  interview_types?: string[] | null
-  skills_assessed?: string[] | null
+  appliedDate?: Date
+  contactId?: string | null
+  resumeId?: string | null
+  coverLetterId?: string | null
+  notes?: string
+  nextSteps?: string
 }

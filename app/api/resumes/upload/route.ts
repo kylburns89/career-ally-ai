@@ -1,19 +1,29 @@
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../auth/auth-options";
+import { prisma } from "../../../../lib/prisma";
 import { NextResponse } from "next/server";
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies });
-    
-    // Check session
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    if (sessionError || !session) {
+    // Check session using next-auth
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
       return new Response(
         JSON.stringify({ message: "Unauthorized" }),
         { status: 401, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    // Get user from prisma
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email },
+    });
+    if (!user) {
+      return new Response(
+        JSON.stringify({ message: "User not found" }),
+        { status: 404, headers: { "Content-Type": "application/json" } }
       );
     }
 
@@ -45,30 +55,34 @@ export async function POST(request: Request) {
       );
     }
 
-    // Generate unique filename
-    const timestamp = Date.now();
-    const fileExtension = file.type.includes('pdf') ? '.pdf' : '.txt';
-    const fileName = `${session.user.id}-${timestamp}${fileExtension}`;
+    // Store file in database
+    const fileContent = await file.text(); // Get file content as text
+    const resume = await prisma.resume.create({
+      data: {
+        userId: user.id,
+        title: file.name, // Use filename as title
+        content: {
+          type: file.type,
+          size: file.size,
+          content: fileContent,
+        },
+        template: 'default', // Default template
+      },
+    });
 
-    // Upload to Supabase Storage
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('resumes')
-      .upload(fileName, file);
-
-    if (uploadError) {
-      console.error("Upload error:", uploadError);
+    if (!resume) {
       return new Response(
-        JSON.stringify({ message: "Failed to upload file" }),
+        JSON.stringify({ message: "Failed to save resume" }),
         { status: 500, headers: { "Content-Type": "application/json" } }
       );
     }
 
-    // Get public URL
-    const { data: { publicUrl } } = supabase.storage
-      .from('resumes')
-      .getPublicUrl(fileName);
-
-    return NextResponse.json({ url: publicUrl });
+    return NextResponse.json({ 
+      id: resume.id,
+      title: resume.title,
+      template: resume.template,
+      createdAt: resume.createdAt
+    });
   } catch (error) {
     console.error("POST /api/resumes/upload error:", error);
     return new Response(

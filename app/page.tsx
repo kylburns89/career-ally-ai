@@ -38,7 +38,7 @@ const features = [
     icon: BriefcaseIcon,
     title: "Application Tracker",
     description: "Track and manage your job applications",
-    href: "/tracker"
+    href: "/applications"
   },
   {
     icon: CodeIcon,

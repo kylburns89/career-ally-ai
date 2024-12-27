@@ -1,443 +1,285 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from 'react';
-import { Card, CardContent } from "../ui/card";
-import { Input } from "../ui/input";
-import { Button } from "../ui/button";
-import { Skeleton } from "../ui/skeleton";
-import { Loader2, Search, ChevronDown, ChevronUp, ExternalLink, AlertCircle } from "lucide-react";
-import { toast } from "sonner";
-import { MarketAnalysis, Source } from '../../types/perplexity';
-import { useAuth } from '../../hooks/use-auth';
+import { useState, useRef } from 'react';
 import Image from 'next/image';
-
-const SourceCard = ({ source, isActive }: { source: Source; isActive: boolean }) => {
-  return (
-    <Card className={`mb-2 transition-all bg-background ${isActive ? 'ring-2 ring-blue-500' : ''}`}>
-      <CardContent className="p-4">
-        <div className="flex items-start gap-3">
-          <div className="relative w-5 h-5">
-            <Image 
-              src={source.icon} 
-              alt={source.title}
-              className="rounded-full"
-              width={20}
-              height={20}
-              onError={(e) => {
-                const url = new URL(source.url);
-                // @ts-ignore - TypeScript doesn't know about HTMLImageElement's src property
-                e.currentTarget.src = `${url.protocol}//${url.hostname}/favicon.ico`;
-              }}
-            />
-          </div>
-          <div className="flex-1">
-            <h3 className="font-medium">{source.title}</h3>
-            <p className="text-sm text-muted-foreground">{source.description}</p>
-          </div>
-          <a 
-            href={source.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-500 hover:text-blue-600"
-          >
-            <ExternalLink className="h-4 w-4" />
-          </a>
-        </div>
-      </CardContent>
-    </Card>
-  );
-};
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Card } from '../ui/card';
+import { Separator } from '../ui/separator';
+import { 
+  Loader2,
+  MessageSquarePlus,
+  ChevronDown,
+  ChevronUp
+} from 'lucide-react';
+import { toast } from '../ui/use-toast';
+import Chat from '../chat/chat';
+import type { MarketAnalysis, Source } from '../../types/perplexity';
 
 export function MarketIntelligenceHub(): JSX.Element {
-  const { user, loading: authLoading } = useAuth();
   const [role, setRole] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [marketData, setMarketData] = useState<MarketAnalysis | null>(null);
+  const [analysis, setAnalysis] = useState<MarketAnalysis | null>(null);
   const [showAllSources, setShowAllSources] = useState(false);
-  const [activeCitation, setActiveCitation] = useState<number | null>(null);
-  const [streamedText, setStreamedText] = useState('');
-
-  // Debug log auth state changes
-  useEffect(() => {
-    console.log('Market Intelligence Hub auth state:', { userId: user?.id, authLoading });
-  }, [user, authLoading]);
-
-  const formatSalary = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      maximumFractionDigits: 0
-    }).format(amount);
-  };
-
-  const handleCitationClick = (num: number) => {
-    setActiveCitation(num === activeCitation ? null : num);
-    if (!showAllSources) {
-      setShowAllSources(true);
-    }
-    // Scroll the source into view
-    const source = marketData?.sources?.find(s => s.id === num);
-    if (source) {
-      document.getElementById(`source-${num}`)?.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
-
-  const renderCitation = (num: number) => (
-    <button
-      onClick={() => handleCitationClick(num)}
-      className={`inline-flex items-center justify-center w-4 h-4 text-xs font-medium rounded-full 
-        ${activeCitation === num ? 'bg-blue-500 text-white' : 'bg-blue-100 text-blue-500 hover:bg-blue-200'}`}
-    >
-      {num}
-    </button>
-  );
-
-  const visibleSources = marketData?.sources 
-    ? (showAllSources ? marketData.sources : marketData.sources.slice(0, 3))
-    : [];
+  const [showChat, setShowChat] = useState(false);
 
   const fetchMarketData = async () => {
     if (!role.trim()) {
-      toast.error('Please enter a job role');
+      toast({ title: 'Please enter a role to analyze', variant: 'destructive' });
       return;
     }
 
     setLoading(true);
-    setError(null);
-    setStreamedText('');
-    setMarketData(null);
-
     try {
-      console.log('Starting market data fetch:', { userId: user?.id, role });
-      const response = await fetch(`/api/market-analysis?role=${encodeURIComponent(role)}`);
-      console.log('Market analysis response:', { status: response.status });
-
-      if (response.status === 401) {
-        console.log('Received 401 from API');
-        throw new Error('Session expired. Please sign in again.');
-      }
+      const response = await fetch('/api/market-analysis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role }),
+      });
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.log('API error response:', errorData);
         throw new Error(errorData.error || 'Failed to fetch market data');
       }
 
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error('No response body');
+      const data = await response.json();
+      if (!data || typeof data !== 'object') {
+        throw new Error('Invalid response format');
       }
 
-      let accumulatedText = '';
-
-      // Process the stream
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        // Convert the chunk to text
-        const chunk = new TextDecoder().decode(value);
-        const lines = chunk.split('\n');
-
-        // Process each line
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const content = line.slice(6); // Remove 'data: ' prefix
-            
-            if (content === '[DONE]') {
-              // Try to parse the complete accumulated text as JSON
-              try {
-                if (accumulatedText) {
-                  const data = JSON.parse(accumulatedText) as MarketAnalysis;
-                  setMarketData(data);
-                  setShowAllSources(false);
-                  setActiveCitation(null);
-                }
-              } catch (e) {
-                console.error('Failed to parse final JSON:', e);
-              }
-              continue;
-            }
-
-            // Update the streamed text display and accumulate for JSON parsing
-            setStreamedText((prev: string) => prev + content);
-            accumulatedText += content;
-          }
-        }
-      }
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch market data';
-      console.error('Market data fetch error:', { error: err, message: errorMessage });
-      setError(errorMessage);
-      toast.error(errorMessage);
+      setAnalysis(data);
+    } catch (error) {
+      console.error('Error fetching market data:', error);
+      toast({ 
+        title: error instanceof Error ? error.message : 'Failed to fetch market data',
+        variant: 'destructive'
+      });
     } finally {
       setLoading(false);
     }
   };
 
-  // Show loading state while auth is being checked
-  if (authLoading) {
-    console.log('Rendering loading state');
-    return (
-      <div className="container mx-auto p-6 max-w-5xl">
-        <div className="space-y-4">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-10 w-full" />
-        </div>
-      </div>
-    );
-  }
+  const analysisRef = useRef<HTMLDivElement>(null);
+  const [loadingQuestion, setLoadingQuestion] = useState<string | null>(null);
+
+  const handleRelatedQuestion = async (question: string) => {
+    setLoadingQuestion(question);
+    setRole(question);
+    await fetchMarketData();
+    setLoadingQuestion(null);
+    
+    // Scroll to top of analysis with smooth animation
+    analysisRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   return (
-    <div className="container mx-auto p-6 max-w-5xl">
-      <div className="space-y-6">
-        {/* Search Section */}
-        <div className="space-y-4">
-          <h1 className="text-2xl font-semibold">Market Intelligence Hub</h1>
-          <div className="flex gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Enter job role (e.g., Software Engineer)"
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                className="pl-9"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !loading && !authLoading) {
-                    fetchMarketData();
-                  }
-                }}
-              />
-            </div>
-            <Button 
-              onClick={fetchMarketData}
-              disabled={loading || !role || authLoading}
-              className="min-w-[100px]"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Analyzing
-                </>
-              ) : (
-                'Analyze'
-              )}
-            </Button>
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto py-8 space-y-8 max-w-4xl">
+        <div className="space-y-6">
+          <div ref={analysisRef} className="flex items-center justify-between">
+            <h1 className="text-2xl font-medium">{role ? `${role} Market Analysis` : 'Market Intelligence'}</h1>
           </div>
-        </div>
 
-        {error && (
-          <Card className="p-4 border-destructive">
-            <div className="flex items-center gap-2 text-destructive">
-              <AlertCircle className="h-4 w-4" />
-              <p>{error}</p>
-            </div>
-          </Card>
-        )}
-
-        {loading && !marketData && (
-          <div className="space-y-4">
-            <Skeleton className="h-[200px] w-full" />
-            <Skeleton className="h-[300px] w-full" />
-          </div>
-        )}
-
-        {loading && streamedText && (
-          <div className="prose prose-slate max-w-none">
-            <pre className="whitespace-pre-wrap font-mono text-xs opacity-50">
-              {streamedText}
-            </pre>
-          </div>
-        )}
-
-        {marketData && (
-          <div className="space-y-6">
-            {/* Sources */}
-            <div className="relative z-10">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between bg-background">
-                  <span className="text-sm font-medium">Sources</span>
-                  {marketData.sources && marketData.sources.length > 3 && (
+          {!analysis && (
+            <Card className="p-6">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label htmlFor="role" className="text-sm font-medium">
+                    Enter a role to analyze
+                  </label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="role"
+                      value={role}
+                      onChange={(e) => setRole(e.target.value)}
+                      placeholder="e.g., Software Engineer, Product Manager"
+                      className="flex-1"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !loading) {
+                          fetchMarketData();
+                        }
+                      }}
+                    />
                     <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowAllSources(!showAllSources)}
-                      className="text-blue-500 hover:text-blue-600"
+                      onClick={fetchMarketData}
+                      disabled={loading || !role}
+                      className="min-w-[100px]"
                     >
-                      {showAllSources ? (
+                      {loading ? (
                         <>
-                          <ChevronUp className="h-4 w-4 mr-1" />
-                          Hide sources
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Analyzing
                         </>
                       ) : (
-                        <>
-                          <ChevronDown className="h-4 w-4 mr-1" />
-                          View all {marketData.sources.length} sources
-                        </>
+                        'Analyze'
                       )}
                     </Button>
-                  )}
+                  </div>
                 </div>
-                <div className="space-y-2 relative bg-background">
-                  {visibleSources.map((source) => (
-                    <div id={`source-${source.id}`} key={source.id} className="relative">
-                      <SourceCard source={source} isActive={activeCitation === source.id} />
-                    </div>
+              </div>
+            </Card>
+          )}
+
+          {analysis && (
+            <>
+              {/* Sources Section */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-sm font-medium text-muted-foreground">Sources</h2>
+                  <Button 
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => setShowAllSources(!showAllSources)}
+                  >
+                    {showAllSources ? (
+                      <>
+                        Show less
+                        <ChevronUp className="ml-1 h-3 w-3" />
+                      </>
+                    ) : (
+                      <>
+                        Show all {analysis.sources.length} sources
+                        <ChevronDown className="ml-1 h-3 w-3" />
+                      </>
+                    )}
+                  </Button>
+                </div>
+                <div className={`grid gap-4 ${showAllSources ? 'grid-cols-1' : 'grid-cols-3'}`}>
+                  {(showAllSources ? analysis.sources : analysis.sources.slice(0, 3)).map((source, index) => (
+                    <a
+                      key={index}
+                      href={source.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-start gap-2 p-3 rounded-lg border hover:bg-accent transition-colors"
+                    >
+                      <div className="w-4 h-4 mt-1 relative">
+                        <Image
+                          src={`https://www.google.com/s2/favicons?domain=${new URL(source.url).hostname}&sz=32`}
+                          alt=""
+                          width={16}
+                          height={16}
+                          className="object-contain"
+                          priority
+                        />
+                      </div>
+                      <div className="flex-1 space-y-1">
+                        <p className="text-sm line-clamp-2">{source.title}</p>
+                        <p className="text-xs text-muted-foreground">{new URL(source.url).hostname}</p>
+                      </div>
+                    </a>
                   ))}
                 </div>
               </div>
-            </div>
 
-            {/* Market Analysis Content */}
-            <div className="prose prose-slate max-w-none relative z-0">
-              {marketData.overview && (
-                <p className="text-lg leading-relaxed">{marketData.overview}</p>
-              )}
+              <Separator />
 
-              {marketData.demandAndOpportunities && (
-                <>
-                  <h3 className="text-xl font-semibold mt-6 mb-3">Demand and Opportunities</h3>
-                  <p className="leading-relaxed">
-                    {marketData.demandAndOpportunities.content}
-                    {marketData.demandAndOpportunities.citations?.map((citation, index) => (
-                      <span key={index} className="ml-1">{renderCitation(citation)}</span>
-                    ))}
-                  </p>
-                </>
-              )}
-
-              {marketData.salaryRange && (
-                <>
-                  <h3 className="text-xl font-semibold mt-6 mb-3">Salary Range</h3>
-                  {marketData.salaryRange.content && (
-                    <p className="leading-relaxed mb-4">
-                      {marketData.salaryRange.content}
-                    </p>
-                  )}
-                  <ul className="space-y-3 list-none pl-0">
-                    {marketData.salaryRange.rates?.hourlyRate && (
-                      <li className="flex items-start">
-                        <span className="mr-2">•</span>
-                        <span>
-                          Average hourly rate: {formatSalary(marketData.salaryRange.rates.hourlyRate.average)} 
-                          (ranging from {formatSalary(marketData.salaryRange.rates.hourlyRate.min)} to {formatSalary(marketData.salaryRange.rates.hourlyRate.max)})
-                          <span className="ml-1">{renderCitation(marketData.salaryRange.rates.hourlyRate.citation)}</span>
-                        </span>
-                      </li>
-                    )}
-                    {marketData.salaryRange.rates?.annualRange && (
-                      <li className="flex items-start">
-                        <span className="mr-2">•</span>
-                        <span>
-                          Annual salary range: {formatSalary(marketData.salaryRange.rates.annualRange.min)} to {formatSalary(marketData.salaryRange.rates.annualRange.max)}, 
-                          with the majority falling between {formatSalary(marketData.salaryRange.rates.annualRange.commonMin)} and {formatSalary(marketData.salaryRange.rates.annualRange.commonMax)}
-                          <span className="ml-1">{renderCitation(marketData.salaryRange.rates.annualRange.citation)}</span>
-                        </span>
-                      </li>
-                    )}
-                    {marketData.salaryRange.rates?.seniorRange && (
-                      <li className="flex items-start">
-                        <span className="mr-2">•</span>
-                        <span>
-                          Senior developers ({marketData.salaryRange.rates.seniorRange.yearsExperience}+ years experience): 
-                          {formatSalary(marketData.salaryRange.rates.seniorRange.min)} to {formatSalary(marketData.salaryRange.rates.seniorRange.max)}
-                          <span className="ml-1">{renderCitation(marketData.salaryRange.rates.seniorRange.citation)}</span>
-                        </span>
-                      </li>
-                    )}
-                  </ul>
-
-                  {marketData.salaryRange.locationFactors && (
-                    <p className="leading-relaxed mt-4">
-                      {marketData.salaryRange.locationFactors.content}
-                      <span className="ml-1">{renderCitation(marketData.salaryRange.locationFactors.citation)}</span>
-                    </p>
-                  )}
-                  {marketData.salaryRange.industryFactors && (
-                    <p className="leading-relaxed">
-                      {marketData.salaryRange.industryFactors.content}
-                      <span className="ml-1">{renderCitation(marketData.salaryRange.industryFactors.citation)}</span>
-                    </p>
-                  )}
-                </>
-              )}
-
-              {marketData.skillsInDemand && (
-                <>
-                  <h3 className="text-xl font-semibold mt-6 mb-3">Skills in Demand</h3>
-                  {marketData.skillsInDemand.content && (
-                    <p className="leading-relaxed mb-4">{marketData.skillsInDemand.content}</p>
-                  )}
-                  <ul className="space-y-3 list-none pl-0">
-                    {marketData.skillsInDemand.skills?.core?.map((skill, index) => (
-                      <li key={index} className="flex items-start">
-                        <span className="mr-2">•</span>
-                        {skill}
-                      </li>
-                    ))}
-                    {marketData.skillsInDemand.skills?.technical?.map((skill, index) => (
-                      <li key={index} className="flex items-start">
-                        <span className="mr-2">•</span>
-                        <span>
-                          {skill.skill} ({skill.demandPercentage}% of job postings)
-                          <span className="ml-1">{renderCitation(skill.citation)}</span>
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-
-              {marketData.careerGrowth && (
-                <>
-                  <h3 className="text-xl font-semibold mt-6 mb-3">Career Growth</h3>
-                  {marketData.careerGrowth.content && (
-                    <p className="leading-relaxed mb-4">{marketData.careerGrowth.content}</p>
-                  )}
-                  <ul className="space-y-3 list-none pl-0">
-                    {marketData.careerGrowth.paths?.map((path, index) => (
-                      <li key={index} className="flex items-start">
-                        <span className="mr-2">•</span>
-                        <span>
-                          {path.role}: {formatSalary(path.salary)}, {path.description}
-                          <span className="ml-1">{renderCitation(path.citation)}</span>
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-
-              {marketData.marketOutlook && (
-                <>
-                  <h3 className="text-xl font-semibold mt-6 mb-3">Market Outlook</h3>
-                  <p className="leading-relaxed mb-4">
-                    {marketData.marketOutlook.content}
-                    <span className="ml-1">{renderCitation(marketData.marketOutlook.citation)}</span>
-                  </p>
-                  <ul className="space-y-3 list-none pl-0">
-                    {marketData.marketOutlook.keyPoints?.map((point, index) => (
-                      <li key={index} className="flex items-start">
-                        <span className="mr-2">•</span>
-                        {point}
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-
-              {marketData.certifications && (
-                <div className="mt-6">
-                  <p className="leading-relaxed">
-                    {marketData.certifications.content}
-                    <span className="ml-1">{renderCitation(marketData.certifications.citation)}</span>
-                  </p>
+              {/* Answer Section */}
+              <div className="space-y-8">
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center">
+                    <span className="text-xs">A</span>
+                  </div>
+                  <h2 className="text-sm font-medium">Answer</h2>
                 </div>
-              )}
-            </div>
-          </div>
-        )}
+                <div className="prose prose-neutral dark:prose-invert max-w-none">
+                  <p className="text-base leading-relaxed">{analysis.overview}</p>
+
+                  <h3>Market Growth and Projections</h3>
+                  <p className="text-base leading-relaxed">{analysis.demandAndOpportunities.content}</p>
+
+                  <h3>Regional Market Insights</h3>
+                  <ul>
+                    {analysis.salaryRange.locationFactors.content.split('.').filter(Boolean).map((point, index) => (
+                      <li key={index}>{point.trim()}.</li>
+                    ))}
+                  </ul>
+
+                  <h3>Talent Demand and Compensation</h3>
+                  <p className="text-base leading-relaxed">{analysis.salaryRange.content}</p>
+                  <ul>
+                    <li>
+                      Average hourly rate: ${analysis.salaryRange.rates.hourlyRate.average}/hr (range: ${analysis.salaryRange.rates.hourlyRate.min}-${analysis.salaryRange.rates.hourlyRate.max})
+                    </li>
+                    <li>
+                      Annual salary range: ${analysis.salaryRange.rates.annualRange.min.toLocaleString()}-${analysis.salaryRange.rates.annualRange.max.toLocaleString()}
+                    </li>
+                    <li>
+                      Senior level (${analysis.salaryRange.rates.seniorRange.yearsExperience}+ years): ${analysis.salaryRange.rates.seniorRange.min.toLocaleString()}-${analysis.salaryRange.rates.seniorRange.max.toLocaleString()}
+                    </li>
+                  </ul>
+
+                  <h3>Skills in Demand</h3>
+                  <p className="text-base leading-relaxed">{analysis.skillsInDemand.content}</p>
+                  <div className="grid grid-cols-2 gap-8">
+                    <div>
+                      <h4>Core Skills</h4>
+                      <ul>
+                        {analysis.skillsInDemand.skills.core.map((skill, index) => (
+                          <li key={index}>{skill}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div>
+                      <h4>Technical Skills</h4>
+                      <ul>
+                        {analysis.skillsInDemand.skills.technical.map((skill, index) => (
+                          <li key={index}>
+                            {skill.skill} ({skill.demandPercentage}% demand)
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Related Questions */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium">Related</h3>
+                <div className="space-y-2">
+                  {analysis.relatedQuestions.map((item, index) => (
+                    <Button
+                      key={index}
+                      variant="ghost"
+                      className="w-full justify-start text-left h-auto py-4 px-4 relative"
+                      onClick={() => handleRelatedQuestion(item.question)}
+                      disabled={loading || loadingQuestion === item.question}
+                    >
+                      <div className="flex items-start gap-2">
+                        {loadingQuestion === item.question ? (
+                          <Loader2 className="w-4 h-4 mt-1 flex-shrink-0 animate-spin" />
+                        ) : (
+                          <MessageSquarePlus className="w-4 h-4 mt-1 flex-shrink-0" />
+                        )}
+                        <div className="flex flex-col">
+                          <span className="text-sm">{item.question}</span>
+                          <span className="text-xs text-muted-foreground">{item.description}</span>
+                        </div>
+                      </div>
+                      {loadingQuestion === item.question && (
+                        <div className="absolute inset-0 bg-primary/5 rounded-lg" />
+                      )}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Chat Section */}
+              <div className="mt-8">
+                <Chat 
+                  apiEndpoint="/api/chat"
+                  systemPrompt={`You are a market research expert. The user has just viewed an analysis about ${role}. Help them understand the market data and answer any follow-up questions they might have.`}
+                  initialMessage="Ask me any follow-up questions about the market analysis."
+                  className="min-h-[400px]"
+                />
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

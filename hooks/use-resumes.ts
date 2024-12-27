@@ -1,64 +1,41 @@
 import { useState, useEffect } from 'react';
-import { createClient } from '../lib/supabase/client';
-import { useToast } from '../components/ui/use-toast';
+import { useSession } from 'next-auth/react';
+import { useToast } from "../components/ui/use-toast";
 import type { Resume, ResumeContent, Template } from '../types/resume';
 import { normalizeTemplate, formToDbFormat } from '../types/resume';
-import type { Database } from '../types/database';
-import type { Json } from '../types/database';
 
 export function useResumes() {
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
-  const supabase = createClient();
+  const { data: session } = useSession();
   const { toast } = useToast();
 
   useEffect(() => {
-    // Subscribe to auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        fetchResumes();
-      } else {
-        setResumes([]);
-      }
-    });
-
-    // Initial fetch
-    fetchResumes();
-
-    // Cleanup subscription
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
+    if (session) {
+      fetchResumes();
+    } else {
+      setResumes([]);
+    }
+  }, [session]);
 
   const fetchResumes = async () => {
     try {
-      // First check if we have an active session
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session) {
+      if (!session) {
         setResumes([]);
         return;
       }
 
-      // Then verify the user is authenticated
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) {
-        setResumes([]);
-        return;
+      const response = await fetch('/api/resumes');
+      if (!response.ok) {
+        throw new Error('Failed to fetch resumes');
       }
 
-      const { data, error } = await supabase
-        .from('resumes')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
+      const data = await response.json();
 
       // Transform the data to match the Resume type
-      const transformedResumes: Resume[] = (data || []).map(resume => {
-        const dbContent = resume.content as any;
+      const transformedResumes: Resume[] = data.map((resume: any) => {
+        const dbContent = resume.content;
         const content: ResumeContent = {
           personalInfo: dbContent.personalInfo || { fullName: '', email: '', phone: '', location: '' },
           summary: dbContent.summary || '',
@@ -67,7 +44,7 @@ export function useResumes() {
           skills: dbContent.skills || [],
           projects: dbContent.projects || [],
           certifications: dbContent.certifications || [],
-          template: normalizeTemplate(dbContent.template),
+          template: normalizeTemplate(resume.template),
           sections: dbContent.sections || [
             "summary",
             "experience",
@@ -80,11 +57,11 @@ export function useResumes() {
 
         return {
           id: resume.id,
-          userId: resume.user_id,
-          name: resume.name,
+          userId: resume.userId,
+          name: resume.title,
           content,
-          createdAt: resume.created_at,
-          updatedAt: resume.updated_at,
+          createdAt: resume.createdAt,
+          updatedAt: resume.updatedAt,
           file_url: dbContent.file_url,
         };
       });
@@ -104,45 +81,38 @@ export function useResumes() {
 
   const updateResume = async (id: string, name: string, content: ResumeContent) => {
     try {
-      // First check if we have an active session
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session) {
-        throw new Error('Please sign in to continue');
-      }
-
-      // Then verify the user is authenticated
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) {
+      if (!session) {
         throw new Error('Please sign in to continue');
       }
 
       // Convert content to database format
       const dbContent = formToDbFormat(content);
-      
-      // Convert to Json type for Supabase
-      const jsonContent = JSON.parse(JSON.stringify(dbContent)) as Json;
 
-      const { data: resume, error } = await supabase
-        .from('resumes')
-        .update({
-          name,
-          content: jsonContent,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', id)
-        .eq('user_id', user.id)
-        .select()
-        .single();
+      const response = await fetch(`/api/resumes/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: name,
+          content: dbContent,
+          template: content.template,
+        }),
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error('Failed to update resume');
+      }
+
+      const resume = await response.json();
 
       // Update local state
       setResumes(prev => prev.map(r => 
         r.id === id ? {
           ...r,
-          name: resume.name,
+          name: resume.title,
           content: dbContent,
-          updatedAt: resume.updated_at,
+          updatedAt: resume.updatedAt,
         } : r
       ));
 
@@ -167,34 +137,25 @@ export function useResumes() {
     try {
       setIsUploading(true);
 
-      // First check if we have an active session
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session) {
+      if (!session) {
         throw new Error('Please sign in to continue');
       }
 
-      // Then verify the user is authenticated
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) {
-        throw new Error('Please sign in to continue');
-      }
-
-      // Upload file to Supabase Storage
+      // Upload file
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch('/api/resumes/upload', {
+      const uploadResponse = await fetch('/api/resumes/upload', {
         method: 'POST',
         body: formData,
-        credentials: 'include',
       });
 
-      if (!response.ok) {
-        const error = await response.json();
+      if (!uploadResponse.ok) {
+        const error = await uploadResponse.json();
         throw new Error(error.message || 'Failed to upload file');
       }
 
-      const { url } = await response.json();
+      const { url } = await uploadResponse.json();
 
       const defaultTemplate: Template = 'professional';
       const dbContent = {
@@ -222,30 +183,33 @@ export function useResumes() {
         file_url: url,
       };
 
-      // Convert to Json type for Supabase
-      const jsonContent = JSON.parse(JSON.stringify(dbContent)) as Json;
+      // Create resume record
+      const createResponse = await fetch('/api/resumes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: name,
+          content: dbContent,
+          template: defaultTemplate,
+        }),
+      });
 
-      // Create resume record in database
-      const { data: resume, error: dbError } = await supabase
-        .from('resumes')
-        .insert({
-          user_id: user.id,
-          name,
-          content: jsonContent,
-        })
-        .select()
-        .single();
+      if (!createResponse.ok) {
+        throw new Error('Failed to create resume');
+      }
 
-      if (dbError) throw dbError;
+      const resume = await createResponse.json();
 
       // Transform the new resume to match the Resume type
       const transformedResume: Resume = {
         id: resume.id,
-        userId: resume.user_id,
-        name: resume.name,
+        userId: resume.userId,
+        name: resume.title,
         content: dbContent,
-        createdAt: resume.created_at,
-        updatedAt: resume.updated_at,
+        createdAt: resume.createdAt,
+        updatedAt: resume.updatedAt,
         file_url: url,
       };
 
@@ -273,41 +237,17 @@ export function useResumes() {
 
   const deleteResume = async (id: string) => {
     try {
-      // First check if we have an active session
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session) {
+      if (!session) {
         throw new Error('Please sign in to continue');
       }
 
-      // Then verify the user is authenticated
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) {
-        throw new Error('Please sign in to continue');
+      const response = await fetch(`/api/resumes/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete resume');
       }
-
-      const resume = resumes.find((r) => r.id === id);
-      if (!resume) return;
-
-      // Delete file from storage if it exists
-      if (resume.file_url) {
-        const fileName = resume.file_url.split('/').pop();
-        if (fileName) {
-          const { error: storageError } = await supabase.storage
-            .from('resumes')
-            .remove([`${user.id}/${fileName}`]);
-
-          if (storageError) throw storageError;
-        }
-      }
-
-      // Delete record from database
-      const { error: dbError } = await supabase
-        .from('resumes')
-        .delete()
-        .eq('id', id)
-        .eq('user_id', user.id);
-
-      if (dbError) throw dbError;
 
       // Update local state
       setResumes((prev) => prev.filter((r) => r.id !== id));
@@ -326,6 +266,56 @@ export function useResumes() {
     }
   };
 
+  const createResume = async (data: { title: string; content: ResumeContent; template: Template }) => {
+    try {
+      if (!session) {
+        throw new Error('Please sign in to continue');
+      }
+
+      const response = await fetch('/api/resumes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create resume');
+      }
+
+      const resume = await response.json();
+
+      // Transform the new resume to match the Resume type
+      const transformedResume: Resume = {
+        id: resume.id,
+        userId: resume.userId,
+        name: resume.title,
+        content: data.content,
+        createdAt: resume.createdAt,
+        updatedAt: resume.updatedAt,
+      };
+
+      // Update local state
+      setResumes(prev => [transformedResume, ...prev]);
+
+      toast({
+        title: 'Success',
+        description: 'Resume created successfully',
+      });
+
+      return transformedResume;
+    } catch (error) {
+      console.error('Error creating resume:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to create resume',
+        variant: 'destructive',
+      });
+      throw error;
+    }
+  };
+
   return {
     resumes,
     isLoading,
@@ -333,6 +323,7 @@ export function useResumes() {
     uploadResume,
     updateResume,
     deleteResume,
+    createResume,
     refreshResumes: fetchResumes,
   };
 }

@@ -2,10 +2,7 @@
 export const TEMPLATES = [
   "professional",
   "minimal",
-  "technical",
-  "executive",
-  "creative",
-  "academic"
+  "technical"
 ] as const;
 
 export type Template = typeof TEMPLATES[number];

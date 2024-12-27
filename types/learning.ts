@@ -1,32 +1,39 @@
-import { AdaptedSearchResult } from './brave';
-
-export interface LearningResource {
-  id: string;
-  title: string;
-  url: string;
-  provider: string;
-  type: 'course' | 'tutorial' | 'documentation' | 'certification';
-  skillArea: string;
-  completed: boolean;
-  progress: number;
-  startDate?: Date;
-  completionDate?: Date;
-}
-
 export interface SkillGap {
   skill: string;
-  currentLevel: number;
-  targetLevel: number;
-  resources: LearningResource[];
-  certifications: AdaptedSearchResult[];
+  description: string;
+  priority: 'high' | 'medium' | 'low';
+  currentLevel?: string;
+  targetLevel?: string;
+}
+
+export interface LearningResource {
+  title: string;
+  url: string;
+  description: string;
+  type: string;
+  duration: string;
+  difficulty?: string;
+  skills: string[];
+  provider?: string;
+  cost?: string;
+  certification?: boolean;
 }
 
 export interface LearningPath {
+  skillGaps: SkillGap[];
+  resources: LearningResource[];
+  lastUpdated?: string;
+  nextReviewDate?: string;
+}
+
+export interface LearningPathModel {
   id: string;
   userId: string;
   title: string;
-  description: string;
+  description: string | null;
   skillGaps: SkillGap[];
+  resources: LearningResource[];
+  completed: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

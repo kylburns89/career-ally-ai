@@ -1,7 +1,7 @@
 'use client';
 
-import { ErrorBoundary } from '@/components/error-boundary';
-import LearningPath from '@/components/learning/learning-path';
+import { ErrorBoundary } from 'components/error-boundary';
+import LearningPath from 'components/learning/learning-path';
 
 export default function LearningContainer() {
   return (

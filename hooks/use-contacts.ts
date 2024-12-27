@@ -1,15 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
-import { createClient } from '../lib/supabase/client'
-import { Contact, ContactStats, CommunicationEntry, JsonCommunicationEntry } from '../types/contact'
-import { Database } from '../types/database'
+import { Contact, ContactStats } from '../types/contact'
+import { Application } from '../types/application'
+import { useSession } from 'next-auth/react'
+import { toast } from '../components/ui/use-toast'
 
 export function useContacts() {
   const [contacts, setContacts] = useState<Contact[]>([])
   const [stats, setStats] = useState<ContactStats>({
     totalContacts: 0,
     averageRelationshipScore: 0,
-    needsFollowup: 0,
-    recentCommunications: 0,
     networkGrowth: {
       lastMonth: 0,
       lastQuarter: 0,
@@ -17,19 +16,15 @@ export function useContacts() {
     }
   })
   const [isLoading, setIsLoading] = useState(true)
-  const supabase = createClient()
+  const { data: session } = useSession()
 
   const fetchContacts = useCallback(async () => {
     try {
-      // First check if we have an active session
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session) {
+      if (!session?.user?.email) {
         setContacts([])
         setStats({
           totalContacts: 0,
           averageRelationshipScore: 0,
-          needsFollowup: 0,
-          recentCommunications: 0,
           networkGrowth: {
             lastMonth: 0,
             lastQuarter: 0,
@@ -39,39 +34,11 @@ export function useContacts() {
         return
       }
 
-      // Then verify the user is authenticated
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) {
-        setContacts([])
-        setStats({
-          totalContacts: 0,
-          averageRelationshipScore: 0,
-          needsFollowup: 0,
-          recentCommunications: 0,
-          networkGrowth: {
-            lastMonth: 0,
-            lastQuarter: 0,
-            lastYear: 0
-          }
-        })
-        return
-      }
+      const response = await fetch('/api/contacts')
+      if (!response.ok) throw new Error('Failed to fetch contacts')
+      const data = await response.json()
 
-      const { data: fetchedContacts, error } = await supabase
-        .from('contacts')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('name')
-
-      if (error) throw error
-
-      // Convert the fetched contacts to ensure type safety
-      const typedContacts: Contact[] = fetchedContacts.map(contact => ({
-        ...contact,
-        communication_history: (contact.communication_history || []) as JsonCommunicationEntry[]
-      }))
-
-      setContacts(typedContacts)
+      setContacts(data)
       
       // Calculate stats
       const now = new Date()
@@ -80,24 +47,18 @@ export function useContacts() {
       const oneYearAgo = new Date(now.setFullYear(now.getFullYear() - 1))
 
       const stats: ContactStats = {
-        totalContacts: typedContacts.length,
-        averageRelationshipScore: typedContacts.reduce((acc, contact) => 
-          acc + (contact.relationship_score || 0), 0) / typedContacts.length || 0,
-        needsFollowup: typedContacts.filter(contact => 
-          contact.next_followup_date && new Date(contact.next_followup_date) <= new Date()
-        ).length,
-        recentCommunications: typedContacts.filter(contact =>
-          contact.last_contact_date && new Date(contact.last_contact_date) >= oneMonthAgo
-        ).length,
+        totalContacts: data.length,
+        averageRelationshipScore: data.reduce((acc: number, contact: Contact) => 
+          acc + (contact.relationship_score || 0), 0) / data.length || 0,
         networkGrowth: {
-          lastMonth: typedContacts.filter(contact => 
-            new Date(contact.created_at) >= oneMonthAgo
+          lastMonth: data.filter((contact: Contact) => 
+            new Date(contact.createdAt) >= oneMonthAgo
           ).length,
-          lastQuarter: typedContacts.filter(contact =>
-            new Date(contact.created_at) >= oneQuarterAgo
+          lastQuarter: data.filter((contact: Contact) =>
+            new Date(contact.createdAt) >= oneQuarterAgo
           ).length,
-          lastYear: typedContacts.filter(contact =>
-            new Date(contact.created_at) >= oneYearAgo
+          lastYear: data.filter((contact: Contact) =>
+            new Date(contact.createdAt) >= oneYearAgo
           ).length
         }
       }
@@ -105,193 +66,111 @@ export function useContacts() {
       setStats(stats)
     } catch (error) {
       console.error('Error fetching contacts:', error)
+      toast({ title: 'Failed to fetch contacts', variant: 'destructive' })
     } finally {
       setIsLoading(false)
     }
-  }, [supabase])
+  }, [session])
 
   useEffect(() => {
-    // Subscribe to auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        fetchContacts()
-      } else {
-        setContacts([])
-        setStats({
-          totalContacts: 0,
-          averageRelationshipScore: 0,
-          needsFollowup: 0,
-          recentCommunications: 0,
-          networkGrowth: {
-            lastMonth: 0,
-            lastQuarter: 0,
-            lastYear: 0
-          }
-        })
-      }
-    })
-
-    // Initial fetch
     fetchContacts()
+  }, [fetchContacts])
 
-    // Cleanup subscription
-    return () => {
-      subscription.unsubscribe()
-    }
-  }, [fetchContacts, supabase])
-
-  const addContact = async (contactData: Omit<Contact, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'communication_history'>) => {
+  const addContact = async (contactData: Omit<Contact, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'applications'>) => {
     try {
-      // First check if we have an active session
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session) {
-        throw new Error('Please sign in to continue');
-      }
+      const response = await fetch('/api/contacts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(contactData)
+      })
 
-      // Then verify the user is authenticated
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) {
-        throw new Error('Please sign in to continue');
-      }
-
-      const newContact = {
-        ...contactData,
-        user_id: user.id,
-        communication_history: []
-      }
-
-      const { data, error } = await supabase
-        .from('contacts')
-        .insert([newContact])
-        .select()
-        .single()
-
-      if (error) throw error
-
+      if (!response.ok) throw new Error('Failed to add contact')
+      
+      const data = await response.json()
       await fetchContacts()
       return data
     } catch (error) {
       console.error('Error adding contact:', error)
+      toast({ title: 'Failed to add contact', variant: 'destructive' })
       return null
     }
   }
 
   const updateContact = async (
     id: string, 
-    updates: Partial<Omit<Contact, 'id' | 'user_id' | 'created_at' | 'updated_at'>>
+    updates: Partial<Omit<Contact, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'applications'>>
   ) => {
     try {
-      // First check if we have an active session
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session) {
-        throw new Error('Please sign in to continue');
-      }
+      const response = await fetch(`/api/contacts/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      })
 
-      // Then verify the user is authenticated
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) {
-        throw new Error('Please sign in to continue');
-      }
-
-      // Convert communication_history to JsonCommunicationEntry[] if it exists
-      const updatesWithJsonHistory = updates.communication_history 
-        ? {
-            ...updates,
-            communication_history: updates.communication_history as JsonCommunicationEntry[]
-          }
-        : updates
-
-      const { data, error } = await supabase
-        .from('contacts')
-        .update(updatesWithJsonHistory)
-        .eq('id', id)
-        .eq('user_id', user.id)
-        .select()
-        .single()
-
-      if (error) throw error
-
+      if (!response.ok) throw new Error('Failed to update contact')
+      
+      const data = await response.json()
       await fetchContacts()
       return data
     } catch (error) {
       console.error('Error updating contact:', error)
+      toast({ title: 'Failed to update contact', variant: 'destructive' })
       return null
     }
   }
 
   const deleteContact = async (id: string) => {
     try {
-      // First check if we have an active session
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session) {
-        throw new Error('Please sign in to continue');
-      }
+      const response = await fetch(`/api/contacts/${id}`, {
+        method: 'DELETE'
+      })
 
-      // Then verify the user is authenticated
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) {
-        throw new Error('Please sign in to continue');
-      }
-
-      const { error } = await supabase
-        .from('contacts')
-        .delete()
-        .eq('id', id)
-        .eq('user_id', user.id)
-
-      if (error) throw error
-
+      if (!response.ok) throw new Error('Failed to delete contact')
+      
       await fetchContacts()
       return true
     } catch (error) {
       console.error('Error deleting contact:', error)
+      toast({ title: 'Failed to delete contact', variant: 'destructive' })
       return false
     }
   }
 
-  const addCommunication = async (
-    contactId: string, 
-    entry: Omit<CommunicationEntry, 'date'>
-  ) => {
+  const linkApplication = async (contactId: string, applicationId: string) => {
     try {
-      // First check if we have an active session
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session) {
-        throw new Error('Please sign in to continue');
-      }
+      const response = await fetch(`/api/applications/${applicationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contactId })
+      })
 
-      // Then verify the user is authenticated
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) {
-        throw new Error('Please sign in to continue');
-      }
-
-      const contact = contacts.find(c => c.id === contactId)
-      if (!contact) return null
-
-      const newEntry: JsonCommunicationEntry = {
-        ...entry,
-        date: new Date().toISOString()
-      }
-
-      const { data, error } = await supabase
-        .from('contacts')
-        .update({
-          communication_history: [...(contact.communication_history || []), newEntry],
-          last_contact_date: new Date().toISOString()
-        })
-        .eq('id', contactId)
-        .eq('user_id', user.id)
-        .select()
-        .single()
-
-      if (error) throw error
-
+      if (!response.ok) throw new Error('Failed to link application')
+      
       await fetchContacts()
-      return data
+      return true
     } catch (error) {
-      console.error('Error adding communication:', error)
-      return null
+      console.error('Error linking application:', error)
+      toast({ title: 'Failed to link application', variant: 'destructive' })
+      return false
+    }
+  }
+
+  const unlinkApplication = async (applicationId: string) => {
+    try {
+      const response = await fetch(`/api/applications/${applicationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contactId: null })
+      })
+
+      if (!response.ok) throw new Error('Failed to unlink application')
+      
+      await fetchContacts()
+      return true
+    } catch (error) {
+      console.error('Error unlinking application:', error)
+      toast({ title: 'Failed to unlink application', variant: 'destructive' })
+      return false
     }
   }
 
@@ -302,7 +181,8 @@ export function useContacts() {
     addContact,
     updateContact,
     deleteContact,
-    addCommunication,
+    linkApplication,
+    unlinkApplication,
     refresh: fetchContacts
   }
 }

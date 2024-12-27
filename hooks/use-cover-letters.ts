@@ -1,72 +1,41 @@
 import { useState, useEffect } from 'react';
-import { createClient } from '../lib/supabase/client';
-import { useToast } from '../components/ui/use-toast';
-import { Database } from '../types/database';
-import { CoverLetter } from '../types/cover-letter';
+import { useSession } from 'next-auth/react';
+import { useToast } from "../components/ui/use-toast";
+import type { CoverLetter, CoverLetterTemplate } from '../types/cover-letter';
 
 export function useCoverLetters() {
   const [coverLetters, setCoverLetters] = useState<CoverLetter[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const supabase = createClient();
+  const { data: session } = useSession();
   const { toast } = useToast();
 
   useEffect(() => {
-    // Subscribe to auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) {
-        fetchCoverLetters();
-      } else {
-        setCoverLetters([]);
-      }
-    });
-
-    // Initial fetch
-    fetchCoverLetters();
-
-    // Cleanup subscription
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
+    if (session) {
+      fetchCoverLetters();
+    } else {
+      setCoverLetters([]);
+    }
+  }, [session]);
 
   const fetchCoverLetters = async () => {
     try {
-      // First check if we have an active session
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session) {
+      if (!session) {
         setCoverLetters([]);
         return;
       }
 
-      // Then verify the user is authenticated
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) {
-        setCoverLetters([]);
-        return;
+      const response = await fetch('/api/cover-letters');
+      if (!response.ok) {
+        throw new Error('Failed to fetch cover letters');
       }
 
-      const { data, error } = await supabase
-        .from('cover_letters')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      
-      // Convert the fetched data to match CoverLetter type
-      const typedCoverLetters: CoverLetter[] = (data || []).map(letter => ({
-        ...letter,
-        content: typeof letter.content === 'string' 
-          ? letter.content 
-          : JSON.stringify(letter.content)
-      }));
-      
-      setCoverLetters(typedCoverLetters);
+      const data = await response.json();
+      setCoverLetters(data);
     } catch (error) {
       console.error('Error fetching cover letters:', error);
       toast({
         title: 'Error',
-        description: 'Failed to fetch cover letters',
+        description: error instanceof Error ? error.message : 'Failed to fetch cover letters',
         variant: 'destructive',
       });
     } finally {
@@ -74,52 +43,47 @@ export function useCoverLetters() {
     }
   };
 
-  const saveCoverLetter = async (name: string, content: string, jobTitle?: string, company?: string) => {
+  const saveCoverLetter = async (
+    name: string,
+    content: string,
+    jobTitle?: string,
+    company?: string,
+    template: CoverLetterTemplate = 'professional'
+  ) => {
     try {
-      // First check if we have an active session
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session) {
+      if (!session) {
         throw new Error('Please sign in to continue');
       }
 
-      // Then verify the user is authenticated
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) {
-        throw new Error('Please sign in to continue');
+      const response = await fetch('/api/cover-letters', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: name,
+          content,
+          jobTitle,
+          company,
+          template,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save cover letter');
       }
 
-      // Parse content as JSON if it's a stringified JSON, otherwise store as is
-      let jsonContent;
-      try {
-        jsonContent = JSON.parse(content);
-      } catch {
-        jsonContent = content;
-      }
+      const savedLetter = await response.json();
 
-      const { data, error } = await supabase
-        .from('cover_letters')
-        .insert([{
-          user_id: user.id,
-          name,
-          content: jsonContent,
-          job_title: jobTitle || null,
-          company: company || null,
-        }])
-        .select()
-        .single();
+      // Update local state
+      setCoverLetters(prev => [savedLetter, ...prev]);
 
-      if (error) throw error;
+      toast({
+        title: 'Success',
+        description: 'Cover letter saved successfully',
+      });
 
-      // Convert the returned data to match CoverLetter type
-      const typedCoverLetter: CoverLetter = {
-        ...data,
-        content: typeof data.content === 'string' 
-          ? data.content 
-          : JSON.stringify(data.content)
-      };
-
-      setCoverLetters(prev => [typedCoverLetter, ...prev]);
-      return typedCoverLetter;
+      return savedLetter;
     } catch (error) {
       console.error('Error saving cover letter:', error);
       toast({
@@ -131,29 +95,85 @@ export function useCoverLetters() {
     }
   };
 
+  const updateCoverLetter = async (
+    id: string,
+    name: string,
+    content: string,
+    jobTitle?: string,
+    company?: string,
+    template?: CoverLetterTemplate
+  ) => {
+    try {
+      if (!session) {
+        throw new Error('Please sign in to continue');
+      }
+
+      const response = await fetch(`/api/cover-letters/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: name,
+          content,
+          jobTitle,
+          company,
+          template,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update cover letter');
+      }
+
+      const updatedLetter = await response.json();
+
+      // Update local state
+      setCoverLetters(prev =>
+        prev.map(letter =>
+          letter.id === id ? updatedLetter : letter
+        )
+      );
+
+      toast({
+        title: 'Success',
+        description: 'Cover letter updated successfully',
+      });
+
+      return updatedLetter;
+    } catch (error) {
+      console.error('Error updating cover letter:', error);
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to update cover letter',
+        variant: 'destructive',
+      });
+      return null;
+    }
+  };
+
   const deleteCoverLetter = async (id: string) => {
     try {
-      // First check if we have an active session
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session) {
+      if (!session) {
         throw new Error('Please sign in to continue');
       }
 
-      // Then verify the user is authenticated
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      if (userError || !user) {
-        throw new Error('Please sign in to continue');
+      const response = await fetch(`/api/cover-letters/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete cover letter');
       }
 
-      const { error } = await supabase
-        .from('cover_letters')
-        .delete()
-        .eq('id', id)
-        .eq('user_id', user.id);
-
-      if (error) throw error;
-
+      // Update local state
       setCoverLetters(prev => prev.filter(letter => letter.id !== id));
+
+      toast({
+        title: 'Success',
+        description: 'Cover letter deleted successfully',
+      });
+
       return true;
     } catch (error) {
       console.error('Error deleting cover letter:', error);
@@ -169,8 +189,9 @@ export function useCoverLetters() {
   return {
     coverLetters,
     isLoading,
-    refreshCoverLetters: fetchCoverLetters,
     saveCoverLetter,
+    updateCoverLetter,
     deleteCoverLetter,
+    refreshCoverLetters: fetchCoverLetters,
   };
 }
