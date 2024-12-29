@@ -474,6 +474,7 @@ export function ResumeBuilder({
                 template: selectedTemplate
               }}
               templateId={selectedTemplate}
+              resumeId={activeResume?.id}
             />
           </div>
         </div>

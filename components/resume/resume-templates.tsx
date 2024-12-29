@@ -15,7 +15,6 @@ const templates: Array<{
   name: string;
   description: string;
   preview: string;
-  status?: string;
 }> = [
   {
     id: "professional" as Template,
@@ -33,48 +32,15 @@ const templates: Array<{
     id: "technical" as Template,
     name: "Technical",
     description: "Optimized for software developers and IT professionals",
-    preview: "/templates/technical.png", // Using professional as placeholder
-  },
-  {
-    id: "executive" as Template,
-    name: "Executive",
-    description: "Sophisticated design for senior professionals and executives",
-    preview: "/templates/professional.png", // Using professional as placeholder
-    status: "coming soon"
-  },
-  {
-    id: "creative" as Template,
-    name: "Creative",
-    description: "Modern and unique design for creative professionals",
-    preview: "/templates/professional.png", // Using professional as placeholder
-    status: "coming soon"
-  },
-  {
-    id: "academic" as Template,
-    name: "Academic",
-    description: "Formal layout ideal for academic and research positions",
-    preview: "/templates/professional.png", // Using professional as placeholder
-    status: "coming soon"
+    preview: "/templates/technical.png",
   }
 ];
 
 export default function ResumeTemplates({ onSelect }: ResumeTemplatesProps) {
   const { toast } = useToast();
 
-  const handleTemplateSelect = (templateId: Template, status?: string) => {
-    if (status === "coming soon") {
-      toast({
-        title: "Coming Soon",
-        description: "This template will be available soon. Please check back later.",
-        duration: 3000,
-      });
-      return;
-    }
-
-    // Call the provided onSelect function
+  const handleTemplateSelect = (templateId: Template) => {
     onSelect(templateId);
-
-    // Show success toast
     toast({
       title: "Template Selected",
       description: "You can now customize your resume in the builder tab.",
@@ -94,21 +60,16 @@ export default function ResumeTemplates({ onSelect }: ResumeTemplatesProps) {
               className="object-contain"
               sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
             />
-            {template.status && (
-              <div className="absolute top-2 right-2 bg-primary text-primary-foreground px-2 py-1 rounded text-sm">
-                {template.status}
-              </div>
-            )}
           </div>
           <div className="p-4 space-y-2">
             <h3 className="font-semibold">{template.name}</h3>
             <p className="text-sm text-muted-foreground">{template.description}</p>
             <Button
-              onClick={() => handleTemplateSelect(template.id, template.status)}
+              onClick={() => handleTemplateSelect(template.id)}
               variant="outline"
               className="w-full"
             >
-              {template.status ? "Coming Soon" : "Use Template"}
+              Use Template
             </Button>
           </div>
         </Card>

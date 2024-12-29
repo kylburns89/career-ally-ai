@@ -1,30 +1,16 @@
-// All possible template IDs
+// All available template IDs
 export const ALL_TEMPLATES = [
-  "professional",
-  "minimal",
-  "technical",
-  "executive",
-  "creative",
-  "academic"
-] as const;
-
-// Currently available templates
-export const TEMPLATES = [
   "professional",
   "minimal",
   "technical"
 ] as const;
 
+// Currently available templates (same as ALL_TEMPLATES since we removed coming soon ones)
+export const TEMPLATES = ALL_TEMPLATES;
+
 export type Template = typeof ALL_TEMPLATES[number];
 export type AvailableTemplate = typeof TEMPLATES[number];
 export type FormTemplate = Template | null | string;
-
-// Templates that are not yet available
-export const COMING_SOON_TEMPLATES = [
-  "executive",
-  "creative",
-  "academic"
-] as const;
 
 // Template preview interface
 export interface TemplatePreview {

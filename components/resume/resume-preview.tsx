@@ -3,7 +3,9 @@
 import { useState } from "react";
 import type { ResumeFormData, Template } from "../../types/resume";
 import { normalizeTemplate } from "../../types/resume";
-import { Minus, Plus } from "lucide-react";
+import { Download, Minus, Plus } from "lucide-react";
+import { Button } from "../ui/button";
+import { useToast } from "../ui/use-toast";
 import { templateStyles, type TemplateStyle } from "./template-styles";
 
 // Helper function to convert description text into bullet points
@@ -155,19 +157,77 @@ function ResumeSection({ type, data, styles }: { type: string; data: ResumeFormD
 interface ResumePreviewProps {
   data: ResumeFormData;
   templateId?: Template;
+  resumeId?: string;
 }
 
-export default function ResumePreview({ data, templateId }: ResumePreviewProps) {
+export default function ResumePreview({ data, templateId, resumeId }: ResumePreviewProps) {
   const normalizedTemplateId = normalizeTemplate(templateId || data.template || "professional");
   const [zoom, setZoom] = useState(100);
+  const [isExporting, setIsExporting] = useState(false);
   const styles = templateStyles[normalizedTemplateId] || templateStyles.professional;
+  const { toast } = useToast();
   
   if (!data || !data.sections) return null;
 
+  const handleExport = async () => {
+    try {
+      setIsExporting(true);
+      if (!resumeId) {
+        throw new Error('Resume ID is required for export');
+      }
+      
+      const response = await fetch(`/api/resumes/export/pdf/${resumeId}`, {
+        method: 'GET',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to export resume');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${data.personalInfo.fullName.replace(/\s+/g, '-').toLowerCase()}-resume.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: "Exported!",
+        description: "Resume exported as PDF",
+      });
+    } catch (error) {
+      toast({
+        title: "Export Failed",
+        description: "Failed to export resume. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
-      {/* Zoom Controls */}
-      <div className="flex items-center justify-end gap-2 pb-2 border-b">
+      {/* Controls */}
+      <div className="flex items-center justify-between gap-2 pb-2 border-b">
+        <Button
+          variant="outline"
+          onClick={handleExport}
+          disabled={isExporting}
+          className="flex items-center gap-2"
+        >
+          {isExporting ? (
+            <>Exporting...</>
+          ) : (
+            <>
+              <Download className="h-4 w-4" />
+              Export as PDF
+            </>
+          )}
+        </Button>
         <button
           onClick={() => setZoom(Math.max(50, zoom - 10))}
           className="p-1 rounded hover:bg-gray-100"
