@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { useTheme } from "next-themes";
 import { Button } from "../components/ui/button";
-import * as Dialog from "@radix-ui/react-dialog";
 import {
   NavigationMenu,
   NavigationMenuContent,
@@ -27,19 +26,23 @@ import {
 } from "../components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
 
-const MobileNav = () => {
+const MobileNav = ({ onNavigate }: { onNavigate: () => void }) => {
   const pathname = usePathname();
   const isActive = (path: string) => pathname === path;
+
+  const handleClick = () => {
+    onNavigate();
+  };
 
   return (
     <div className="flex flex-col space-y-3">
       <div className="flex flex-col space-y-3 border-b pb-4">
         <h2 className="px-2 text-sm font-semibold text-foreground/80">Documents</h2>
-        <Link href="/resume" className={`flex items-center gap-2 text-sm rounded-md p-2 transition-colors hover:bg-accent hover:text-accent-foreground ${isActive("/resume") ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`}>
+        <Link href="/resume" onClick={handleClick} className={`flex items-center gap-2 text-sm rounded-md p-2 transition-colors hover:bg-accent hover:text-accent-foreground ${isActive("/resume") ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`}>
           <span className="text-sm">📄</span>
           Resume
         </Link>
-        <Link href="/cover-letter" className={`flex items-center gap-2 text-sm rounded-md p-2 transition-colors hover:bg-accent hover:text-accent-foreground ${isActive("/cover-letter") ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`}>
+        <Link href="/cover-letter" onClick={handleClick} className={`flex items-center gap-2 text-sm rounded-md p-2 transition-colors hover:bg-accent hover:text-accent-foreground ${isActive("/cover-letter") ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`}>
           <span className="text-sm">📄</span>
           Cover Letter
         </Link>
@@ -47,15 +50,15 @@ const MobileNav = () => {
       
       <div className="flex flex-col space-y-3 border-b pb-4">
         <h2 className="px-2 text-sm font-semibold text-foreground/80">Job Search</h2>
-        <Link href="/jobs" className={`flex items-center gap-2 text-sm rounded-md p-2 transition-colors hover:bg-accent hover:text-accent-foreground ${isActive("/jobs") ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`}>
+        <Link href="/jobs" onClick={handleClick} className={`flex items-center gap-2 text-sm rounded-md p-2 transition-colors hover:bg-accent hover:text-accent-foreground ${isActive("/jobs") ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`}>
           <span className="text-sm">🔍</span>
           Job Search
         </Link>
-        <Link href="/applications" className={`flex items-center gap-2 text-sm rounded-md p-2 transition-colors hover:bg-accent hover:text-accent-foreground ${isActive("/applications") ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`}>
+        <Link href="/applications" onClick={handleClick} className={`flex items-center gap-2 text-sm rounded-md p-2 transition-colors hover:bg-accent hover:text-accent-foreground ${isActive("/applications") ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`}>
           <span className="text-sm">💼</span>
           Application Tracker
         </Link>
-        <Link href="/contacts" className={`flex items-center gap-2 text-sm rounded-md p-2 transition-colors hover:bg-accent hover:text-accent-foreground ${isActive("/contacts") ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`}>
+        <Link href="/contacts" onClick={handleClick} className={`flex items-center gap-2 text-sm rounded-md p-2 transition-colors hover:bg-accent hover:text-accent-foreground ${isActive("/contacts") ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`}>
           <span className="text-sm">👥</span>
           Contacts
         </Link>
@@ -63,15 +66,15 @@ const MobileNav = () => {
 
       <div className="flex flex-col space-y-3 border-b pb-4">
         <h2 className="px-2 text-sm font-semibold text-foreground/80">Career Growth</h2>
-        <Link href="/market-intelligence" className={`flex items-center gap-2 text-sm rounded-md p-2 transition-colors hover:bg-accent hover:text-accent-foreground ${isActive("/market-intelligence") ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`}>
+        <Link href="/market-intelligence" onClick={handleClick} className={`flex items-center gap-2 text-sm rounded-md p-2 transition-colors hover:bg-accent hover:text-accent-foreground ${isActive("/market-intelligence") ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`}>
           <span className="text-sm">📊</span>
           Market Intelligence
         </Link>
-        <Link href="/salary" className={`flex items-center gap-2 text-sm rounded-md p-2 transition-colors hover:bg-accent hover:text-accent-foreground ${isActive("/salary") ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`}>
+        <Link href="/salary" onClick={handleClick} className={`flex items-center gap-2 text-sm rounded-md p-2 transition-colors hover:bg-accent hover:text-accent-foreground ${isActive("/salary") ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`}>
           <span className="text-sm">💰</span>
           Salary Coach
         </Link>
-        <Link href="/learning" className={`flex items-center gap-2 text-sm rounded-md p-2 transition-colors hover:bg-accent hover:text-accent-foreground ${isActive("/learning") ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`}>
+        <Link href="/learning" onClick={handleClick} className={`flex items-center gap-2 text-sm rounded-md p-2 transition-colors hover:bg-accent hover:text-accent-foreground ${isActive("/learning") ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`}>
           <span className="text-sm">📚</span>
           Learning Path
         </Link>
@@ -79,22 +82,22 @@ const MobileNav = () => {
 
       <div className="flex flex-col space-y-3 border-b pb-4">
         <h2 className="px-2 text-sm font-semibold text-foreground/80">Practice</h2>
-        <Link href="/interview" className={`flex items-center gap-2 text-sm rounded-md p-2 transition-colors hover:bg-accent hover:text-accent-foreground ${isActive("/interview") ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`}>
+        <Link href="/interview" onClick={handleClick} className={`flex items-center gap-2 text-sm rounded-md p-2 transition-colors hover:bg-accent hover:text-accent-foreground ${isActive("/interview") ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`}>
           <span className="text-sm">💬</span>
           Interview Simulator
         </Link>
-        <Link href="/challenges" className={`flex items-center gap-2 text-sm rounded-md p-2 transition-colors hover:bg-accent hover:text-accent-foreground ${isActive("/challenges") ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`}>
+        <Link href="/challenges" onClick={handleClick} className={`flex items-center gap-2 text-sm rounded-md p-2 transition-colors hover:bg-accent hover:text-accent-foreground ${isActive("/challenges") ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`}>
           <span className="text-sm">🎯</span>
           Technical Challenges
         </Link>
       </div>
 
       <div className="flex flex-col space-y-3">
-        <Link href="/chat" className={`flex items-center gap-2 text-sm rounded-md p-2 transition-colors hover:bg-accent hover:text-accent-foreground ${isActive("/chat") ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`}>
+        <Link href="/chat" onClick={handleClick} className={`flex items-center gap-2 text-sm rounded-md p-2 transition-colors hover:bg-accent hover:text-accent-foreground ${isActive("/chat") ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`}>
           <span className="text-sm">💬</span>
           AI Chat
         </Link>
-        <Link href="/about" className={`flex items-center gap-2 text-sm rounded-md p-2 transition-colors hover:bg-accent hover:text-accent-foreground ${isActive("/about") ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`}>
+        <Link href="/about" onClick={handleClick} className={`flex items-center gap-2 text-sm rounded-md p-2 transition-colors hover:bg-accent hover:text-accent-foreground ${isActive("/about") ? "bg-accent text-accent-foreground" : "text-muted-foreground"}`}>
           <span className="text-sm">ℹ️</span>
           About
         </Link>
@@ -108,10 +111,22 @@ export function Navbar() {
   const { data: session, status } = useSession();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [mobileMenuOpen]);
 
   const isActive = (path: string) => pathname === path;
 
@@ -337,31 +352,53 @@ export function Navbar() {
 
           <div className="flex items-center gap-2 md:gap-4">
             {session && (
-              <Dialog.Root>
-                <Dialog.Trigger asChild>
-                  <Button variant="ghost" size="icon" className="md:hidden">
-                    <span className="text-lg">☰</span>
-                    <span className="sr-only">Toggle menu</span>
-                  </Button>
-                </Dialog.Trigger>
-                <Dialog.Portal>
-                  <Dialog.Overlay className="fixed inset-0 z-50 bg-black/80 backdrop-blur" />
-                  <Dialog.Content className="fixed inset-y-0 left-0 z-50 h-full w-[300px] border-r bg-background shadow-lg animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left duration-200 sm:w-[400px]">
-                    <div className="flex flex-col gap-4 h-full overflow-hidden p-6">
+              <>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="md:hidden"
+                  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                  aria-label="Toggle menu"
+                >
+                  <span className="text-lg">☰</span>
+                </Button>
+
+                {/* Mobile Menu */}
+                <div 
+                  className={`fixed inset-0 z-[100] bg-black/80 transition-opacity duration-200 ${
+                    mobileMenuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                  }`}
+                  onClick={() => setMobileMenuOpen(false)}
+                  aria-hidden="true"
+                />
+                
+                <div 
+                  className={`fixed left-0 top-0 z-[101] h-[100dvh] w-[300px] overflow-auto bg-background shadow-lg transition-transform duration-200 ease-out sm:w-[400px] ${
+                    mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+                  }`}
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="Navigation Menu"
+                >
+                  <div className="flex flex-col gap-4 p-4">
+                    <div className="flex items-center justify-between">
                       <Link href="/" className="text-lg font-semibold text-primary">
                         Kareerly
                       </Link>
-                      <div className="overflow-y-auto scrollbar-custom">
-                        <MobileNav />
-                      </div>
+                      <button
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                        aria-label="Close menu"
+                      >
+                        <span className="text-lg">✕</span>
+                      </button>
                     </div>
-                    <Dialog.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
-                      <span className="text-lg">✕</span>
-                      <span className="sr-only">Close</span>
-                    </Dialog.Close>
-                  </Dialog.Content>
-                </Dialog.Portal>
-              </Dialog.Root>
+                    <div>
+                      <MobileNav onNavigate={() => setMobileMenuOpen(false)} />
+                    </div>
+                  </div>
+                </div>
+              </>
             )}
             {/* Theme toggle with mounted check */}
             <Button
