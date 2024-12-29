@@ -6,9 +6,10 @@ import { authOptions } from "../../auth/auth-options";
 // GET /api/applications/[id] - Get a specific application
 export async function GET(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.email) {
@@ -31,7 +32,7 @@ export async function GET(
 
     const application = await prisma.jobApplication.findFirst({
       where: {
-        id: params.id,
+        id: id,
         userId: user.id,
       },
       include: {
@@ -80,9 +81,10 @@ export async function GET(
 // PUT /api/applications/[id] - Update a specific application
 export async function PUT(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.email) {
@@ -106,7 +108,7 @@ export async function PUT(
     // Verify the application belongs to the user
     const existingApplication = await prisma.jobApplication.findFirst({
       where: {
-        id: params.id,
+        id: id,
         userId: user.id,
       },
     });
@@ -121,7 +123,7 @@ export async function PUT(
     const updatedData = await req.json();
 
     const application = await prisma.jobApplication.update({
-      where: { id: params.id },
+      where: { id: id },
       data: {
         jobTitle: updatedData.jobTitle,
         company: updatedData.company,
@@ -170,9 +172,10 @@ export async function PUT(
 // PATCH /api/applications/[id] - Update specific fields of an application
 export async function PATCH(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.email) {
@@ -196,7 +199,7 @@ export async function PATCH(
     // Verify the application belongs to the user
     const existingApplication = await prisma.jobApplication.findFirst({
       where: {
-        id: params.id,
+        id: id,
         userId: user.id,
       },
     });
@@ -211,7 +214,7 @@ export async function PATCH(
     const patchData = await req.json();
 
     const application = await prisma.jobApplication.update({
-      where: { id: params.id },
+      where: { id: id },
       data: {
         contactId: patchData.contactId,
       },
@@ -254,9 +257,10 @@ export async function PATCH(
 // DELETE /api/applications/[id] - Delete a specific application
 export async function DELETE(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.email) {
@@ -280,7 +284,7 @@ export async function DELETE(
     // Verify the application belongs to the user
     const existingApplication = await prisma.jobApplication.findFirst({
       where: {
-        id: params.id,
+        id: id,
         userId: user.id,
       },
     });
@@ -293,7 +297,7 @@ export async function DELETE(
     }
 
     await prisma.jobApplication.delete({
-      where: { id: params.id },
+      where: { id: id },
     });
 
     return new Response(null, { status: 204 });

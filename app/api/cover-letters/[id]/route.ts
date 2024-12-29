@@ -6,9 +6,10 @@ import { prisma } from "../../../../lib/prisma";
 // GET /api/cover-letters/[id] - Get a specific cover letter
 export async function GET(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
       return new NextResponse("Unauthorized", { status: 401 });
@@ -16,7 +17,7 @@ export async function GET(
 
     const coverLetter = await prisma.coverLetter.findUnique({
       where: {
-        id: params.id,
+        id: id,
       },
       include: {
         user: true,
@@ -55,9 +56,10 @@ export async function GET(
 // PUT /api/cover-letters/[id] - Update a specific cover letter
 export async function PUT(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
       return new NextResponse("Unauthorized", { status: 401 });
@@ -65,7 +67,7 @@ export async function PUT(
 
     const coverLetter = await prisma.coverLetter.findUnique({
       where: {
-        id: params.id,
+        id: id,
       },
       include: {
         user: true,
@@ -86,7 +88,7 @@ export async function PUT(
 
     const updatedCoverLetter = await prisma.coverLetter.update({
       where: {
-        id: params.id,
+        id: id,
       },
       data: {
         title: title || coverLetter.title,
@@ -117,9 +119,10 @@ export async function PUT(
 // DELETE /api/cover-letters/[id] - Delete a specific cover letter
 export async function DELETE(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
       return new NextResponse("Unauthorized", { status: 401 });
@@ -127,7 +130,7 @@ export async function DELETE(
 
     const coverLetter = await prisma.coverLetter.findUnique({
       where: {
-        id: params.id,
+        id: id,
       },
       include: {
         user: true,
@@ -145,7 +148,7 @@ export async function DELETE(
 
     await prisma.coverLetter.delete({
       where: {
-        id: params.id,
+        id: id,
       },
     });
 

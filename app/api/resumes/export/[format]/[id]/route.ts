@@ -3,7 +3,7 @@ import { jsPDF } from "jspdf";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../../../auth/auth-options";
 import { prisma } from "../../../../../../lib/prisma";
-import type { ResumeContent, Template } from "../../../../../../types/resume";
+import { ResumeContent, AvailableTemplate, normalizeTemplate } from "../../../../../../types/resume";
 
 const PAGE = {
   WIDTH: 8.5,
@@ -23,13 +23,13 @@ interface TemplateStyles {
   headerSize: number;
   sectionHeaderSize: number;
   textSize: number;
-  headerColor: [number, number, number];
-  accentColor: [number, number, number];
+  headerColor: readonly [number, number, number];
+  accentColor: readonly [number, number, number];
   font: "helvetica" | "courier" | "times";
   spacing: number;
 }
 
-const templateStyles: Record<Template, TemplateStyles> = {
+const templateStyles: Record<AvailableTemplate, TemplateStyles> = {
   professional: {
     headerSize: 24,
     sectionHeaderSize: 14,
@@ -140,12 +140,12 @@ function addSectionHeader(doc: jsPDF, text: string, y: number, styles: TemplateS
   y = checkPageBreak(doc, y);
   doc.setFontSize(styles.sectionHeaderSize);
   doc.setFont(styles.font, "bold");
-  doc.setTextColor(...styles.headerColor);
+  doc.setTextColor(styles.headerColor[0], styles.headerColor[1], styles.headerColor[2]);
   doc.text(text, PAGE.MARGIN.LEFT, y);
   
   const textWidth = doc.getTextWidth(text);
   doc.setLineWidth(0.02);
-  doc.setDrawColor(...styles.accentColor);
+  doc.setDrawColor(styles.accentColor[0], styles.accentColor[1], styles.accentColor[2]);
   doc.line(PAGE.MARGIN.LEFT, y + 0.1, PAGE.MARGIN.LEFT + textWidth, y + 0.1);
   
   doc.setTextColor(0, 0, 0);
@@ -173,11 +173,11 @@ function addLink(doc: jsPDF, text: string, x: number, y: number, styles: Templat
     startX = (PAGE.WIDTH - textWidth) / 2;
   }
   
-  doc.setTextColor(...styles.accentColor);
+  doc.setTextColor(styles.accentColor[0], styles.accentColor[1], styles.accentColor[2]);
   doc.text(sanitizedText, startX, y);
   
   doc.setLineWidth(0.02);
-  doc.setDrawColor(...styles.accentColor);
+  doc.setDrawColor(styles.accentColor[0], styles.accentColor[1], styles.accentColor[2]);
   doc.line(startX, y + 0.02, startX + textWidth, y + 0.02);
   
   doc.setTextColor(0, 0, 0);
@@ -186,7 +186,7 @@ function addLink(doc: jsPDF, text: string, x: number, y: number, styles: Templat
 }
 
 // Helper function to set up the document with proper font encoding
-function setupDocument(template: Template = 'professional'): jsPDF {
+function setupDocument(template: AvailableTemplate = 'professional'): jsPDF {
   const doc = new jsPDF({
     unit: "in",
     format: "letter",
@@ -209,15 +209,17 @@ function setupDocument(template: Template = 'professional'): jsPDF {
 
 export async function GET(
   request: Request,
-  { params }: { params: { format: string; id: string } }
+  { params }: { params: Promise<{ format: string; id: string }> }
 ) {
   // Currently only PDF format is supported
-  if (params.format.toLowerCase() !== 'pdf') {
+  const { format, id } = await params;
+  
+  if (format.toLowerCase() !== 'pdf') {
     return new NextResponse(
       JSON.stringify({
         error: "Unsupported format",
         message: "Currently only PDF format is supported",
-        requestedFormat: params.format
+        requestedFormat: format
       }),
       { 
         status: 400,
@@ -230,7 +232,7 @@ export async function GET(
 
   async function attemptExport(): Promise<Response> {
     try {
-      console.log("Starting PDF export for resume:", params.id);
+      console.log("Starting PDF export for resume:", id);
       
       const session = await getServerSession(authOptions);
       if (!session?.user?.email) {
@@ -243,7 +245,7 @@ export async function GET(
       // Fetch resume data
       const resume = await prisma.resume.findUnique({
         where: {
-          id: params.id,
+          id: id,
           userId: session.user.id,
         },
       });
@@ -266,7 +268,7 @@ export async function GET(
 
       // Generate PDF
       console.log("Generating PDF with template:", content.template);
-      const template = content.template || 'professional';
+      const template = normalizeTemplate(content.template);
       const styles = templateStyles[template];
       const doc = setupDocument(template);
 
@@ -275,7 +277,7 @@ export async function GET(
       // Header section
       doc.setFontSize(styles.headerSize);
       doc.setFont(styles.font, "bold");
-      doc.setTextColor(...styles.headerColor);
+      doc.setTextColor(styles.headerColor[0], styles.headerColor[1], styles.headerColor[2]);
       const name = sanitizeText(content.personalInfo.fullName || content.personalInfo.name || "");
       doc.text(name, PAGE.WIDTH / 2, currentY, { align: "center" });
       currentY += styles.spacing * 2;

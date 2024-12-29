@@ -1,12 +1,7 @@
 import type { ResumeContent, ResumeAnalysis } from '../../../types/resume';
 import { createChatCompletion } from '../../../lib/openai';
-import { createClient } from '@supabase/supabase-js';
-import { Prisma } from '@prisma/client';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { prisma } from '../../../lib/prisma';
+import { createId } from '@paralleldrive/cuid2';
 
 const ANALYSIS_PROMPT = `Analyze the following resume and provide detailed feedback in the following areas:
 1. Overall quality and impact
@@ -18,6 +13,15 @@ const ANALYSIS_PROMPT = `Analyze the following resume and provide detailed feedb
 
 Resume Content:
 `;
+
+interface ResumeAnalysisRecord {
+  id: string;
+  resumeId: string;
+  content: unknown;
+  analysis: unknown;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 function isResumeContent(obj: unknown): obj is ResumeContent {
   if (!obj || typeof obj !== 'object') return false;
@@ -31,21 +35,51 @@ function isResumeContent(obj: unknown): obj is ResumeContent {
   );
 }
 
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const resumeId = searchParams.get('resumeId');
+
+    if (!resumeId) {
+      return Response.json({ error: "Resume ID is required" }, { status: 400 });
+    }
+
+    // Get existing analysis
+    const existingAnalysis = await prisma.$queryRaw<ResumeAnalysisRecord[]>`
+      SELECT * FROM "ResumeAnalysis"
+      WHERE "resumeId" = ${resumeId}
+      ORDER BY "createdAt" DESC
+      LIMIT 1
+    `;
+
+    if (!existingAnalysis?.[0]) {
+      return Response.json({ analysis: null });
+    }
+
+    return Response.json({ analysis: existingAnalysis[0].analysis });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred while fetching the analysis.";
+    return Response.json({ error: errorMessage }, { status: 500 });
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const { resume, resumeId } = await request.json();
 
-    // Check cache first
-    const { data: cachedAnalysis } = await supabase
-      .from("resume_analyses")
-      .select("*")
-      .eq("resume_id", resumeId)
-      .single();
-
-    if (cachedAnalysis) {
-      const cachedResumeContent = cachedAnalysis.resume_content;
-      if (isResumeContent(cachedResumeContent) && !hasResumeChanged(resume, cachedResumeContent)) {
-        return Response.json({ analysis: cachedAnalysis.analysis });
+    // Get existing analysis
+    const existingAnalysis = await prisma.$queryRaw<ResumeAnalysisRecord[]>`
+      SELECT * FROM "ResumeAnalysis"
+      WHERE "resumeId" = ${resumeId}
+      ORDER BY "createdAt" DESC
+      LIMIT 1
+    `;
+    
+    // If we have an existing analysis and the resume hasn't changed, return it
+    if (existingAnalysis?.[0]?.content && existingAnalysis?.[0]?.analysis) {
+      const existingContent = existingAnalysis[0].content as ResumeContent;
+      if (isResumeContent(existingContent) && !hasResumeChanged(resume, existingContent)) {
+        return Response.json({ analysis: existingAnalysis[0].analysis });
       }
     }
 
@@ -67,34 +101,35 @@ export async function POST(request: Request) {
     // Parse and structure the analysis
     const structuredAnalysis = structureAnalysis(analysis);
 
-    // Cache the results
-    const resumeJson: Prisma.JsonValue = JSON.parse(JSON.stringify(resume));
-    const analysisJson: Prisma.JsonValue = JSON.parse(JSON.stringify(structuredAnalysis));
-
-    await supabase.from("resume_analyses").upsert({
-      resume_id: resumeId,
-      resume_content: resumeJson,
-      analysis: analysisJson,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    });
+    // If we have an existing analysis, update it. Otherwise create a new one.
+    if (existingAnalysis?.[0]?.id) {
+      await prisma.$executeRaw`
+        UPDATE "ResumeAnalysis"
+        SET 
+          content = ${JSON.stringify(resume)}::jsonb,
+          analysis = ${JSON.stringify(structuredAnalysis)}::jsonb,
+          "updatedAt" = NOW()
+        WHERE id = ${existingAnalysis[0].id}
+      `;
+    } else {
+      await prisma.$executeRaw`
+        INSERT INTO "ResumeAnalysis" (id, "resumeId", content, analysis, "createdAt", "updatedAt")
+        VALUES (
+          ${createId()},
+          ${resumeId},
+          ${JSON.stringify(resume)}::jsonb,
+          ${JSON.stringify(structuredAnalysis)}::jsonb,
+          NOW(),
+          NOW()
+        )
+      `;
+    }
 
     // Return the analysis
     return Response.json({ analysis: structuredAnalysis });
   } catch (error) {
-    console.error("Error analyzing resume:", error);
-    
-    if (error instanceof Error) {
-      return Response.json(
-        { error: error.message },
-        { status: 500 }
-      );
-    }
-
-    return Response.json(
-      { error: "An unexpected error occurred while analyzing the resume." },
-      { status: 500 }
-    );
+    const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred while analyzing the resume.";
+    return Response.json({ error: errorMessage }, { status: 500 });
   }
 }
 

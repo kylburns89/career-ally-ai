@@ -488,12 +488,12 @@ export function CoverLetterGenerator(): JSX.Element {
                   <div className="flex justify-between items-center mb-2">
                     <h4 className="font-medium">{letter.name}</h4>
                     <span className="text-sm text-muted-foreground">
-                      {new Date(letter.created_at).toLocaleDateString()}
+                      {new Date(letter.createdAt).toLocaleDateString()}
                     </span>
                   </div>
-                  {letter.job_title && letter.company && (
+                  {letter.jobTitle && letter.company && (
                     <p className="text-sm text-muted-foreground mb-4">
-                      {letter.job_title} at {letter.company}
+                      {letter.jobTitle} at {letter.company}
                     </p>
                   )}
                   <div className="border rounded-lg overflow-hidden mb-4">

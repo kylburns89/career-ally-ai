@@ -1,20 +1,21 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "../../../../../lib/prisma";
 import { authOptions } from "../../../auth/auth-options";
 
 // PATCH /api/applications/[id]/communication - Add a new communication entry
 export async function PATCH(
-  req: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.email) {
-      return new Response(
-        JSON.stringify({ message: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
+      return NextResponse.json(
+        { message: "Unauthorized" },
+        { status: 401 }
       );
     }
 
@@ -23,16 +24,16 @@ export async function PATCH(
     });
 
     if (!user) {
-      return new Response(
-        JSON.stringify({ message: "User not found" }),
-        { status: 404, headers: { "Content-Type": "application/json" } }
+      return NextResponse.json(
+        { message: "User not found" },
+        { status: 404 }
       );
     }
 
     // Verify the application belongs to the user
     const existingApplication = await prisma.jobApplication.findFirst({
       where: {
-        id: params.id,
+        id: id,
         userId: user.id,
       },
       include: {
@@ -41,13 +42,13 @@ export async function PATCH(
     });
 
     if (!existingApplication) {
-      return new Response(
-        JSON.stringify({ message: "Application not found" }),
-        { status: 404, headers: { "Content-Type": "application/json" } }
+      return NextResponse.json(
+        { message: "Application not found" },
+        { status: 404 }
       );
     }
 
-    const communicationData = await req.json();
+    const communicationData = await request.json();
 
     const currentHistory = (existingApplication as any).communicationHistory || [];
     const newEntry = {
@@ -56,7 +57,7 @@ export async function PATCH(
     };
 
     const application = await prisma.jobApplication.update({
-      where: { id: params.id },
+      where: { id: id },
       data: {
         communicationHistory: [...currentHistory, newEntry]
       } as any,
@@ -86,28 +87,29 @@ export async function PATCH(
     return NextResponse.json(transformedApplication);
 } catch (error) {
     console.error("PATCH /api/applications/[id]/communication error:", error);
-    return new Response(
-      JSON.stringify({
+    return NextResponse.json(
+      {
         message: error instanceof Error ? error.message : "Failed to add communication",
         error: error instanceof Error ? error.message : "Unknown error",
-      }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
+      },
+      { status: 500 }
     );
   }
 }
 
 // DELETE /api/applications/[id]/communication - Delete a communication entry
 export async function DELETE(
-  req: Request,
-  { params }: { params: { id: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.email) {
-      return new Response(
-        JSON.stringify({ message: "Unauthorized" }),
-        { status: 401, headers: { "Content-Type": "application/json" } }
+      return NextResponse.json(
+        { message: "Unauthorized" },
+        { status: 401 }
       );
     }
 
@@ -116,16 +118,16 @@ export async function DELETE(
     });
 
     if (!user) {
-      return new Response(
-        JSON.stringify({ message: "User not found" }),
-        { status: 404, headers: { "Content-Type": "application/json" } }
+      return NextResponse.json(
+        { message: "User not found" },
+        { status: 404 }
       );
     }
 
     // Verify the application belongs to the user
     const existingApplication = await prisma.jobApplication.findFirst({
       where: {
-        id: params.id,
+        id: id,
         userId: user.id,
       },
       include: {
@@ -134,13 +136,13 @@ export async function DELETE(
     });
 
     if (!existingApplication) {
-      return new Response(
-        JSON.stringify({ message: "Application not found" }),
-        { status: 404, headers: { "Content-Type": "application/json" } }
+      return NextResponse.json(
+        { message: "Application not found" },
+        { status: 404 }
       );
     }
 
-    const { index } = await req.json();
+    const { index } = await request.json();
     const currentHistory = (existingApplication as any).communicationHistory || [];
     
     // Remove the communication at the specified index
@@ -150,7 +152,7 @@ export async function DELETE(
     ];
 
     const application = await prisma.jobApplication.update({
-      where: { id: params.id },
+      where: { id: id },
       data: {
         communicationHistory: updatedHistory
       } as any,
@@ -180,12 +182,12 @@ export async function DELETE(
     return NextResponse.json(transformedApplication);
   } catch (error) {
     console.error("DELETE /api/applications/[id]/communication error:", error);
-    return new Response(
-      JSON.stringify({
+    return NextResponse.json(
+      {
         message: error instanceof Error ? error.message : "Failed to delete communication",
         error: error instanceof Error ? error.message : "Unknown error",
-      }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
+      },
+      { status: 500 }
     );
   }
 }

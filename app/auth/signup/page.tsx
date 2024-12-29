@@ -121,15 +121,6 @@ export default function SignUp() {
             >
               {loading ? "Creating account..." : "Sign Up"}
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              onClick={() => signIn("google", { callbackUrl: "/" })}
-              disabled={loading}
-            >
-              Sign up with Google
-            </Button>
             <p className="text-sm text-center text-muted-foreground">
               Already have an account?{" "}
               <Button

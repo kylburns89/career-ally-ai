@@ -8,9 +8,10 @@ import { formToDbFormat } from "../../../../types/resume";
 // GET /api/resumes/[id] - Get a specific resume
 export async function GET(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
       return new Response(
@@ -32,7 +33,7 @@ export async function GET(
 
     const resume = await prisma.resume.findUnique({
       where: {
-        id: params.id,
+        id: id,
         userId: user.id,
       },
     });
@@ -60,9 +61,10 @@ export async function GET(
 // PUT /api/resumes/[id] - Update a resume
 export async function PUT(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
       return new Response(
@@ -103,7 +105,7 @@ export async function PUT(
       // Update resume in database
       const updatedResume = await prisma.resume.update({
         where: {
-          id: params.id,
+          id: id,
           userId: user.id,
         },
         data: {
@@ -118,7 +120,7 @@ export async function PUT(
       // Handle name-only updates
       const updatedResume = await prisma.resume.update({
         where: {
-          id: params.id,
+          id: id,
           userId: user.id,
         },
         data: {
@@ -143,9 +145,10 @@ export async function PUT(
 // DELETE /api/resumes/[id] - Delete a resume
 export async function DELETE(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
       return new Response(
@@ -168,7 +171,7 @@ export async function DELETE(
     // Delete resume from database
     await prisma.resume.delete({
       where: {
-        id: params.id,
+        id: id,
         userId: user.id,
       },
     });

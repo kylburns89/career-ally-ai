@@ -1,5 +1,8 @@
+"use client";
+
 import { useState } from "react";
-import type { ResumeFormData } from "../../types/resume";
+import type { ResumeFormData, Template } from "../../types/resume";
+import { normalizeTemplate } from "../../types/resume";
 import { Minus, Plus } from "lucide-react";
 import { templateStyles, type TemplateStyle } from "./template-styles";
 
@@ -151,12 +154,13 @@ function ResumeSection({ type, data, styles }: { type: string; data: ResumeFormD
 
 interface ResumePreviewProps {
   data: ResumeFormData;
-  templateId?: string;
+  templateId?: Template;
 }
 
-export default function ResumePreview({ data, templateId = "professional" }: ResumePreviewProps) {
+export default function ResumePreview({ data, templateId }: ResumePreviewProps) {
+  const normalizedTemplateId = normalizeTemplate(templateId || data.template || "professional");
   const [zoom, setZoom] = useState(100);
-  const styles = templateStyles[templateId] || templateStyles.professional;
+  const styles = templateStyles[normalizedTemplateId] || templateStyles.professional;
   
   if (!data || !data.sections) return null;
 

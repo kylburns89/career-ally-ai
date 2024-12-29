@@ -1,14 +1,11 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url = env("POSTGRES_PRISMA_URL") // uses connection pooling
-  directUrl = env("POSTGRES_URL_NON_POOLING") // uses a direct connection
+  provider  = "postgresql"
+  url       = env("POSTGRES_PRISMA_URL")
+  directUrl = env("POSTGRES_URL_NON_POOLING")
 }
 
 model Account {
@@ -17,15 +14,14 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
@@ -47,103 +43,118 @@ model VerificationToken {
 }
 
 model User {
-  id            String    @id @default(cuid())
+  id            String           @id @default(cuid())
   name          String?
-  email         String?   @unique
+  email         String?          @unique
   emailVerified DateTime?
   image         String?
   password      String?
   accounts      Account[]
-  sessions      Session[]
-  profile       Profile?
-  resumes       Resume[]
-  coverLetters  CoverLetter[]
   contacts      Contact[]
+  coverLetters  CoverLetter[]
   applications  JobApplication[]
   learningPaths LearningPath[]
+  profile       Profile?
+  resumes       Resume[]
+  sessions      Session[]
 }
 
 model Profile {
-  id              String   @id @default(cuid())
-  userId          String   @unique
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  headline        String?
-  summary         String?  @db.Text
-  location        String?
-  skills          String[]
-  experience      Json[]
-  education       Json[]
-  certifications  Json[]
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  headline       String?
+  summary        String?
+  location       String?
+  skills         String[] @default([])
+  experience     Json[]   @default([])
+  education      Json[]   @default([])
+  certifications Json[]   @default([])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Resume {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title       String
-  content     Json
-  template    String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String           @id @default(cuid())
+  userId    String
+  title     String
+  content   Json
+  template  String
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  analyses  ResumeAnalysis[]
+}
+
+model ResumeAnalysis {
+  id           String   @id @default(cuid())
+  resumeId     String
+  resume       Resume   @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  content      Json
+  analysis     Json
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([resumeId])
 }
 
 model CoverLetter {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title       String
-  content     String   @db.Text
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Contact {
-  id                String   @id @default(cuid())
-  userId            String
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name              String
-  email             String?
-  phone             String?
-  company           String?
-  title             String?
-  notes             String?  @db.Text
-  relationship_score Int?     @default(50)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  applications      JobApplication[]
+  id                 String           @id @default(cuid())
+  userId             String
+  name               String
+  email              String?
+  phone              String?
+  company            String?
+  title              String?
+  notes              String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  relationship_score Int?             @default(50)
+  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  applications       JobApplication[]
 }
 
 model JobApplication {
-  id                  String    @id @default(cuid())
-  userId              String
-  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  jobTitle            String
-  company             String
-  location            String?
-  status              String    @default("applied")
-  appliedDate         DateTime  @default(now())
-  contactId           String?
-  contact             Contact?  @relation(fields: [contactId], references: [id])
-  resumeId            String?
-  coverLetterId       String?
-  notes               String?   @db.Text
-  nextSteps           String?
+  id                   String   @id @default(cuid())
+  userId               String
+  jobTitle             String
+  company              String
+  location             String?
+  status               String   @default("applied")
+  appliedDate          DateTime @default(now())
+  contactId            String?
+  resumeId             String?
+  coverLetterId        String?
+  notes                String?
+  nextSteps            String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
   communicationHistory Json[]   @default([])
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  contact              Contact? @relation(fields: [contactId], references: [id])
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model LearningPath {
   id          String   @id @default(cuid())
   userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   title       String
-  description String?  @db.Text
-  skillGaps   Json    @default("[]")
-  resources   Json    @default("[]")
+  description String?
+  skillGaps   Json     @default("[]")
+  resources   Json     @default("[]")
   completed   Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

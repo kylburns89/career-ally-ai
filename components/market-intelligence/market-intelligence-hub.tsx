@@ -176,63 +176,103 @@ export function MarketIntelligenceHub(): JSX.Element {
               <Separator />
 
               {/* Answer Section */}
-              <div className="space-y-8">
+              <div className="space-y-6">
                 <div className="flex items-center gap-2">
                   <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center">
                     <span className="text-xs">A</span>
                   </div>
                   <h2 className="text-sm font-medium">Answer</h2>
                 </div>
-                <div className="prose prose-neutral dark:prose-invert max-w-none">
+
+                {/* Overview Card */}
+                <Card className="p-6">
                   <p className="text-base leading-relaxed">{analysis.overview}</p>
+                </Card>
 
-                  <h3>Market Growth and Projections</h3>
+                {/* Market Growth Card */}
+                <Card className="p-6 space-y-4">
+                  <h3 className="text-lg font-semibold">Market Growth and Projections</h3>
                   <p className="text-base leading-relaxed">{analysis.demandAndOpportunities.content}</p>
+                </Card>
 
-                  <h3>Regional Market Insights</h3>
-                  <ul>
+                {/* Regional Insights Card */}
+                <Card className="p-6 space-y-4">
+                  <h3 className="text-lg font-semibold">Regional Market Insights</h3>
+                  <div className="grid gap-3">
                     {analysis.salaryRange.locationFactors.content.split('.').filter(Boolean).map((point, index) => (
-                      <li key={index}>{point.trim()}.</li>
+                      <div key={index} className="flex items-start gap-2">
+                        <div className="w-2 h-2 rounded-full bg-primary mt-2" />
+                        <p className="flex-1">{point.trim()}.</p>
+                      </div>
                     ))}
-                  </ul>
+                  </div>
+                </Card>
 
-                  <h3>Talent Demand and Compensation</h3>
+                {/* Compensation Card */}
+                <Card className="p-6 space-y-4">
+                  <h3 className="text-lg font-semibold">Talent Demand and Compensation</h3>
                   <p className="text-base leading-relaxed">{analysis.salaryRange.content}</p>
-                  <ul>
-                    <li>
-                      Average hourly rate: ${analysis.salaryRange.rates.hourlyRate.average}/hr (range: ${analysis.salaryRange.rates.hourlyRate.min}-${analysis.salaryRange.rates.hourlyRate.max})
-                    </li>
-                    <li>
-                      Annual salary range: ${analysis.salaryRange.rates.annualRange.min.toLocaleString()}-${analysis.salaryRange.rates.annualRange.max.toLocaleString()}
-                    </li>
-                    <li>
-                      Senior level (${analysis.salaryRange.rates.seniorRange.yearsExperience}+ years): ${analysis.salaryRange.rates.seniorRange.min.toLocaleString()}-${analysis.salaryRange.rates.seniorRange.max.toLocaleString()}
-                    </li>
-                  </ul>
-
-                  <h3>Skills in Demand</h3>
-                  <p className="text-base leading-relaxed">{analysis.skillsInDemand.content}</p>
-                  <div className="grid grid-cols-2 gap-8">
-                    <div>
-                      <h4>Core Skills</h4>
-                      <ul>
-                        {analysis.skillsInDemand.skills.core.map((skill, index) => (
-                          <li key={index}>{skill}</li>
-                        ))}
-                      </ul>
+                  <div className="grid gap-4 mt-4">
+                    <div className="p-4 rounded-lg bg-accent">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Average Hourly Rate</span>
+                        <span className="text-lg font-semibold">${analysis.salaryRange.rates.hourlyRate.average}/hr</span>
+                      </div>
+                      <div className="text-sm text-muted-foreground mt-1">
+                        Range: ${analysis.salaryRange.rates.hourlyRate.min}-${analysis.salaryRange.rates.hourlyRate.max}/hr
+                      </div>
                     </div>
-                    <div>
-                      <h4>Technical Skills</h4>
-                      <ul>
-                        {analysis.skillsInDemand.skills.technical.map((skill, index) => (
-                          <li key={index}>
-                            {skill.skill} ({skill.demandPercentage}% demand)
-                          </li>
-                        ))}
-                      </ul>
+                    <div className="p-4 rounded-lg bg-accent">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Annual Salary Range</span>
+                        <span className="text-lg font-semibold">
+                          ${analysis.salaryRange.rates.annualRange.min.toLocaleString()}-${analysis.salaryRange.rates.annualRange.max.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="p-4 rounded-lg bg-accent">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Senior Level ({analysis.salaryRange.rates.seniorRange.yearsExperience}+ years)</span>
+                        <span className="text-lg font-semibold">
+                          ${analysis.salaryRange.rates.seniorRange.min.toLocaleString()}-${analysis.salaryRange.rates.seniorRange.max.toLocaleString()}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
+                </Card>
+
+                {/* Skills Card */}
+                <Card className="p-6 space-y-4">
+                  <h3 className="text-lg font-semibold">Skills in Demand</h3>
+                  <p className="text-base leading-relaxed">{analysis.skillsInDemand.content}</p>
+                  <div className="grid md:grid-cols-2 gap-6 mt-4">
+                    <div className="space-y-3">
+                      <h4 className="font-medium">Core Skills</h4>
+                      <div className="grid gap-2">
+                        {analysis.skillsInDemand.skills.core.map((skill, index) => (
+                          <div key={index} className="flex items-center gap-2 p-2 rounded-md hover:bg-accent transition-colors">
+                            <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                            <span>{skill}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <h4 className="font-medium">Technical Skills</h4>
+                      <div className="grid gap-2">
+                        {analysis.skillsInDemand.skills.technical.map((skill, index) => (
+                          <div key={index} className="flex items-center justify-between p-2 rounded-md hover:bg-accent transition-colors">
+                            <div className="flex items-center gap-2">
+                              <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                              <span>{skill.skill}</span>
+                            </div>
+                            <span className="text-sm text-muted-foreground">{skill.demandPercentage}% demand</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </Card>
               </div>
 
               <Separator />

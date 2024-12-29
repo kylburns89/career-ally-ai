@@ -4,7 +4,7 @@ import { useState, useEffect, Fragment } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { Plus } from "lucide-react"
-import type { SavedResume } from "../../types/resume"
+import type { SavedResume, ResumeAnalysis } from "../../types/resume"
 import { useResumes } from "../../hooks/use-resumes"
 import { PageContainer } from "../../components/page-container"
 import { LoadingPage } from "../../components/loading"
@@ -23,12 +23,40 @@ export default function ResumePage(): JSX.Element {
   const { resumes, isLoading, refreshResumes, deleteResume, updateResume, createResume } = useResumes();
   const [selectedResume, setSelectedResume] = useState<SavedResume | undefined>(undefined);
   const [activeTab, setActiveTab] = useState("builder");
+  const [existingAnalysis, setExistingAnalysis] = useState<ResumeAnalysis | null>(null);
 
   useEffect(() => {
     if (status === "unauthenticated") {
       router.push("/auth/signin?callbackUrl=/resume");
     }
   }, [status, router]);
+
+  // Fetch existing analysis when a resume is selected
+  useEffect(() => {
+    async function fetchAnalysis() {
+      if (!selectedResume?.id) {
+        setExistingAnalysis(null);
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/analyze-resume?resumeId=${selectedResume.id}`);
+        if (!response.ok) return;
+
+        const data = await response.json();
+        if (data.analysis) {
+          setExistingAnalysis(data.analysis);
+        } else {
+          setExistingAnalysis(null);
+        }
+      } catch (error) {
+        console.error('Error fetching analysis:', error);
+        setExistingAnalysis(null);
+      }
+    }
+
+    fetchAnalysis();
+  }, [selectedResume?.id]);
 
   const handleCreateResume = async () => {
     try {
@@ -134,7 +162,8 @@ export default function ResumePage(): JSX.Element {
                   <ResumeAnalyzer
                     resumeContent={selectedResume.content}
                     resumeId={selectedResume.id}
-                    existingAnalysis={null}
+                    existingAnalysis={existingAnalysis}
+                    onAnalysisComplete={(analysis) => setExistingAnalysis(analysis)}
                   />
                 ) : (
                   <Card className="p-6">

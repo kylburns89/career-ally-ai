@@ -1,57 +1,56 @@
 "use client";
 
 import Image from "next/image";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/use-toast";
+import { Card } from "../ui/card";
+import { Button } from "../ui/button";
+import { useToast } from "../ui/use-toast";
+import { type Template } from "../../types/resume";
 
-interface Template {
-  id: string;
+interface ResumeTemplatesProps {
+  onSelect: (templateId: Template) => void;
+}
+
+const templates: Array<{
+  id: Template;
   name: string;
   description: string;
   preview: string;
   status?: string;
-}
-
-interface ResumeTemplatesProps {
-  onSelect: (templateId: string) => void;
-}
-
-const templates: Template[] = [
+}> = [
   {
-    id: "professional",
+    id: "professional" as Template,
     name: "Professional",
     description: "A clean and modern template suitable for most industries",
     preview: "/templates/professional.png",
   },
   {
-    id: "minimal",
+    id: "minimal" as Template,
     name: "Minimal",
     description: "Clean and concise design that focuses on essential information",
     preview: "/templates/minimal.png",
   },
   {
-    id: "technical",
+    id: "technical" as Template,
     name: "Technical",
     description: "Optimized for software developers and IT professionals",
     preview: "/templates/technical.png", // Using professional as placeholder
   },
   {
-    id: "executive",
+    id: "executive" as Template,
     name: "Executive",
     description: "Sophisticated design for senior professionals and executives",
     preview: "/templates/professional.png", // Using professional as placeholder
     status: "coming soon"
   },
   {
-    id: "creative",
+    id: "creative" as Template,
     name: "Creative",
     description: "Modern and unique design for creative professionals",
     preview: "/templates/professional.png", // Using professional as placeholder
     status: "coming soon"
   },
   {
-    id: "academic",
+    id: "academic" as Template,
     name: "Academic",
     description: "Formal layout ideal for academic and research positions",
     preview: "/templates/professional.png", // Using professional as placeholder
@@ -62,7 +61,7 @@ const templates: Template[] = [
 export default function ResumeTemplates({ onSelect }: ResumeTemplatesProps) {
   const { toast } = useToast();
 
-  const handleTemplateSelect = (templateId: string, status?: string) => {
+  const handleTemplateSelect = (templateId: Template, status?: string) => {
     if (status === "coming soon") {
       toast({
         title: "Coming Soon",

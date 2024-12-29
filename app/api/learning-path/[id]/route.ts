@@ -4,14 +4,16 @@ import { prisma } from '../../../../lib/prisma';
 import { PrismaClient } from '@prisma/client';
 import { SkillGap, LearningResource, LearningPathModel } from '../../../../types/learning';
 
+import { JsonValue } from '@prisma/client/runtime/library';
+
 // Define the database model type
 interface DbLearningPath {
   id: string;
   userId: string;
   title: string;
   description: string | null;
-  skillGaps: string;
-  resources: string;
+  skillGaps: JsonValue;
+  resources: JsonValue;
   completed: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -22,14 +24,70 @@ const db = prisma as PrismaClient & {
   learningPath: {
     update: (args: { where: any; data: any }) => Promise<DbLearningPath>;
     findUnique: (args: { where: any }) => Promise<DbLearningPath | null>;
+    delete: (args: { where: any }) => Promise<DbLearningPath>;
   };
 };
 
-export async function PATCH(
+// Helper function to safely parse JSON
+function safeJsonParse<T>(json: string | null | undefined, fallback: T): T {
+  if (!json) return fallback;
+  try {
+    const parsed = JSON.parse(json);
+    return parsed === null ? fallback : parsed;
+  } catch (error) {
+    return fallback;
+  }
+}
+
+export async function DELETE(
   request: Request,
-  context: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
+    const session = await getServerSession();
+    if (!session?.user?.email) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email }
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
+    // Delete the learning path
+    await db.learningPath.delete({
+      where: {
+        id: id,
+        userId: user.id // Ensure the path belongs to the user
+      }
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting learning path:', error);
+    return NextResponse.json(
+      { error: 'Failed to delete learning path' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
     const session = await getServerSession();
     if (!session?.user?.email) {
       return NextResponse.json(
@@ -74,28 +132,20 @@ export async function PATCH(
     // Update the learning path
     const updatedPath = await db.learningPath.update({
       where: {
-        id: context.params.id,
+        id: id,
         userId: user.id // Ensure the path belongs to the user
       },
       data: updateData
     });
 
     // Parse JSON fields for response
-    try {
-      const response = {
-        ...updatedPath,
-        skillGaps: JSON.parse(updatedPath.skillGaps),
-        resources: JSON.parse(updatedPath.resources)
-      } as LearningPathModel;
-      return NextResponse.json(response);
-    } catch (error) {
-      console.error('Error parsing JSON fields:', error);
-      return NextResponse.json({
-        ...updatedPath,
-        skillGaps: [],
-        resources: []
-      } as LearningPathModel);
-    }
+    const response = {
+      ...updatedPath,
+      skillGaps: safeJsonParse<SkillGap[]>(updatedPath.skillGaps as string, []),
+      resources: safeJsonParse<LearningResource[]>(updatedPath.resources as string, [])
+    } as LearningPathModel;
+    
+    return NextResponse.json(response);
   } catch (error) {
     console.error('Error updating learning path:', error);
     return NextResponse.json(
@@ -107,9 +157,10 @@ export async function PATCH(
 
 export async function GET(
   request: Request,
-  context: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession();
     if (!session?.user?.email) {
       return NextResponse.json(
@@ -132,7 +183,7 @@ export async function GET(
     // Get the learning path
     const learningPath = await db.learningPath.findUnique({
       where: {
-        id: context.params.id,
+        id: id,
         userId: user.id // Ensure the path belongs to the user
       }
     });
@@ -145,22 +196,13 @@ export async function GET(
     }
 
     // Parse JSON fields for response
-    try {
-      const response = {
-        ...learningPath,
-        skillGaps: JSON.parse(learningPath.skillGaps),
-        resources: JSON.parse(learningPath.resources)
-      } as LearningPathModel;
-      return NextResponse.json(response);
-    } catch (error) {
-      console.error('Error parsing JSON fields:', error);
-      return NextResponse.json({
-        ...learningPath,
-        skillGaps: [],
-        resources: []
-      } as LearningPathModel);
-    }
-
+    const response = {
+      ...learningPath,
+      skillGaps: safeJsonParse<SkillGap[]>(learningPath.skillGaps as string, []),
+      resources: safeJsonParse<LearningResource[]>(learningPath.resources as string, [])
+    } as LearningPathModel;
+    
+    return NextResponse.json(response);
   } catch (error) {
     console.error('Error fetching learning path:', error);
     return NextResponse.json(

@@ -6,9 +6,10 @@ import { authOptions } from "../../auth/auth-options";
 // GET /api/contacts/[id] - Get a specific contact
 export async function GET(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.email) {
@@ -31,7 +32,7 @@ export async function GET(
 
     const contact = await prisma.contact.findFirst({
       where: {
-        id: params.id,
+        id: id,
         userId: user.id,
       },
       include: {
@@ -62,9 +63,10 @@ export async function GET(
 // PATCH /api/contacts/[id] - Update specific fields of a contact
 export async function PATCH(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.email) {
@@ -87,7 +89,7 @@ export async function PATCH(
 
     const existingContact = await prisma.contact.findFirst({
       where: {
-        id: params.id,
+        id: id,
         userId: user.id,
       },
     });
@@ -102,7 +104,7 @@ export async function PATCH(
     const updates = await req.json();
 
     const contact = await prisma.contact.update({
-      where: { id: params.id },
+      where: { id: id },
       data: updates,
       include: {
         applications: true,
@@ -125,9 +127,10 @@ export async function PATCH(
 // DELETE /api/contacts/[id] - Delete a specific contact
 export async function DELETE(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.email) {
@@ -150,7 +153,7 @@ export async function DELETE(
 
     const existingContact = await prisma.contact.findFirst({
       where: {
-        id: params.id,
+        id: id,
         userId: user.id,
       },
     });
@@ -163,7 +166,7 @@ export async function DELETE(
     }
 
     await prisma.contact.delete({
-      where: { id: params.id },
+      where: { id: id },
     });
 
     return new Response(null, { status: 204 });

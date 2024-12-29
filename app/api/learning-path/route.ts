@@ -6,14 +6,16 @@ import { searchLearningResources } from '../../../lib/brave';
 import { SkillGap, LearningResource, LearningPathModel } from '../../../types/learning';
 import { AdaptedSearchResult } from '../../../types/brave';
 
+import { JsonValue } from '@prisma/client/runtime/library';
+
 // Define the database model type
 interface DbLearningPath {
   id: string;
   userId: string;
   title: string;
   description: string | null;
-  skillGaps: string;
-  resources: string;
+  skillGaps: JsonValue;
+  resources: JsonValue;
   completed: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -201,8 +203,8 @@ export async function GET(request: Request) {
       try {
         return {
           ...path,
-          skillGaps: JSON.parse(path.skillGaps),
-          resources: JSON.parse(path.resources)
+          skillGaps: JSON.parse(path.skillGaps as string),
+          resources: JSON.parse(path.resources as string)
         } as LearningPathModel;
       } catch (error) {
         console.error(`Error parsing JSON for path ${path.id}:`, error);
@@ -220,48 +222,6 @@ export async function GET(request: Request) {
     console.error('Error fetching learning paths:', error);
     return NextResponse.json(
       { error: 'Failed to fetch learning paths' },
-      { status: 500 }
-    );
-  }
-}
-
-export async function DELETE(
-  request: Request,
-  context: { params: { id: string } }
-) {
-  try {
-    const session = await getServerSession();
-    if (!session?.user?.email) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email }
-    });
-
-    if (!user) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
-    }
-
-    // Delete the learning path
-    await db.learningPath.delete({
-      where: {
-        id: context.params.id,
-        userId: user.id
-      }
-    });
-
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('Error deleting learning path:', error);
-    return NextResponse.json(
-      { error: 'Failed to delete learning path' },
       { status: 500 }
     );
   }

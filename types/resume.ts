@@ -1,12 +1,30 @@
-// Template types
+// All possible template IDs
+export const ALL_TEMPLATES = [
+  "professional",
+  "minimal",
+  "technical",
+  "executive",
+  "creative",
+  "academic"
+] as const;
+
+// Currently available templates
 export const TEMPLATES = [
   "professional",
   "minimal",
   "technical"
 ] as const;
 
-export type Template = typeof TEMPLATES[number];
+export type Template = typeof ALL_TEMPLATES[number];
+export type AvailableTemplate = typeof TEMPLATES[number];
 export type FormTemplate = Template | null | string;
+
+// Templates that are not yet available
+export const COMING_SOON_TEMPLATES = [
+  "executive",
+  "creative",
+  "academic"
+] as const;
 
 // Template preview interface
 export interface TemplatePreview {
@@ -205,10 +223,16 @@ export function normalizeTechnologies(technologies: string | string[]): string[]
   return technologies.split(',').map(t => t.trim()).filter(Boolean);
 }
 
-export function normalizeTemplate(template: FormTemplate): Template {
+export function isAvailableTemplate(template: string | null): template is AvailableTemplate {
+  if (!template) return false;
+  const templateId = template.toLowerCase();
+  return TEMPLATES.includes(templateId as AvailableTemplate);
+}
+
+export function normalizeTemplate(template: FormTemplate): AvailableTemplate {
   if (!template) return "professional";
   const normalizedTemplate = template.toLowerCase();
-  return isValidTemplate(normalizedTemplate) ? normalizedTemplate : "professional";
+  return isAvailableTemplate(normalizedTemplate) ? normalizedTemplate : "professional";
 }
 
 export function toPreviewData(formData: ResumeFormData): PreviewData {
@@ -341,16 +365,11 @@ export const defaultFormValues: ResumeFormData = {
 };
 
 // Template validation and conversion
-export function getTemplateId(template: FormTemplate): Template {
+export function getTemplateId(template: FormTemplate): AvailableTemplate {
   if (!template) return "professional";
   const templateId = template.toLowerCase();
-  if (isValidTemplate(templateId)) {
+  if (isAvailableTemplate(templateId)) {
     return templateId;
   }
   return "professional";
-}
-
-export function isValidTemplate(template: string | null): template is Template {
-  if (!template) return false;
-  return TEMPLATES.includes(template.toLowerCase() as Template);
 }

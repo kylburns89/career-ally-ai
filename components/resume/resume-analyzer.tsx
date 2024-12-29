@@ -18,7 +18,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, CheckCircle, XCircle, AlertCircle, Download } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 import type { ResumeAnalysis } from "@/types/resume";
 
 interface ResumeAnalyzerProps {
@@ -115,39 +115,6 @@ export default function ResumeAnalyzer({
     return <XCircle className="h-5 w-5 text-red-500" />;
   };
 
-  const exportReport = async () => {
-    if (!analysis) return;
-
-    try {
-      const response = await fetch("/api/analyze-resume/export", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ analysis }),
-      });
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "resume-analysis-report.pdf";
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
-      toast({
-        title: "Success",
-        description: "Analysis report exported successfully.",
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to export analysis report.",
-        variant: "destructive",
-      });
-    }
-  };
-
   if (!resumeContent) {
     return (
       <Card className="p-6">
@@ -178,12 +145,6 @@ export default function ResumeAnalyzer({
               </>
             )}
           </Button>
-          {analysis && (
-            <Button variant="outline" onClick={exportReport}>
-              <Download className="mr-2 h-4 w-4" />
-              Export Report
-            </Button>
-          )}
         </div>
 
         {isAnalyzing && (
